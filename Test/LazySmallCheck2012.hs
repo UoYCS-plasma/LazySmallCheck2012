@@ -11,6 +11,7 @@ import System.Exit
 import Test.LazySmallCheck2012.Core
 import Test.LazySmallCheck2012.FunctionalValues hiding (Sum)
 import Test.LazySmallCheck2012.Instances
+import Test.LazySmallCheck2012.FunctionalValues.Instances
 
 depthCheck :: (Data a, Typeable a) => Testable a => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
