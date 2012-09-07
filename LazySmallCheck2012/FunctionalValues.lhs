@@ -22,19 +22,10 @@
 >
 > data BaseThunk a = BaseThunk { forceBase :: Base a }
 >
-> instance Argument Bool where
->   type Base Bool = Either () ()
->   toBase False = Left  ()
->   toBase True  = Right ()
->   fromBase (Left  ()) = False
->   fromBase (Right ()) = True
-
-> instance Argument a => Argument [a] where
->   type Base [a] = Either () (BaseThunk a, BaseThunk [a])
->   toBase []     = Left ()
->   toBase (x:xs) = Right (BaseThunk $ toBase x, BaseThunk $ toBase xs)
->   fromBase (Left ())       = []
->   fromBase (Right (x, xs)) = (fromBase (forceBase x): fromBase (forceBase xs))
+> toBaseThunk :: Argument k => k -> BaseThunk k
+> toBaseThunk = BaseThunk . toBase
+> fromBaseThunk :: Argument k => BaseThunk k -> k
+> fromBaseThunk = fromBase  . forceBase
 >
 > data Level1 k v where
 >   Wild :: v -> Level1 k v
