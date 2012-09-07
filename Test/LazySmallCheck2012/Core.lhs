@@ -28,7 +28,7 @@ Quantification contexts
 The quantification context is simply a (co)monad container that
 carries information about quantifiers.
 
-> type QuantInfo = [String]
+> type QuantInfo = [AlignedString]
 >
 > data QuantCtx a = QC { qcCtx :: QuantInfo, qcVal :: a }
 >
@@ -42,6 +42,21 @@ carries information about quantifiers.
 QuantInfo simply holds the pretty-printed representations of
 instantiated quantification variable values.
 
+> data AlignedString = LAlign [AlignedString]
+>                    | Append String AlignedString
+>                    | Braces AlignedString
+>
+> string = (`Append` LAlign [])
+>
+> showDoc n (LAlign []) = ""
+> showDoc n (LAlign (x:xs))
+>   = init (unlines (showDoc n x : map ((replicate n ' ' ++) . showDoc 0) xs))
+> showDoc n (Append str astr) = str ++ showDoc (n + length str) astr
+> showDoc n (Braces astr) = "{ " ++ showDoc (n + 2) astr ++ " }"
+>
+> instance Show AlignedString where
+>   show     = showDoc 0
+>   showList = shows . LAlign . zipWith (\i -> Append ("Var " ++ show i ++ ": ")) [0..]
 
 Test data terms
 ---------------
@@ -91,7 +106,7 @@ introduced and preserved.
 > mergeTerms :: [Term a] -> Term a
 > mergeTerms []  = error "LSC: Cannot merge empty terms."
 > mergeTerms [x] = x
-> mergeTerms xs  = Term (pure . inject . Expand) (const xs)
+> mergeTerms xs  = Term (QC [string "_"] . inject . Expand) (const xs)
 >
 > instance Alternative Series where
 >   empty = Series $ pure []
@@ -113,7 +128,7 @@ automatically for types satisfying the Serial type-class.
 >   seriesWithCtx :: Series a
 >   seriesWithCtx = Series $ (fmap . fmap) storeShow $ runSeries series
 >     where storeShow (Term v es) = Term 
->             ((fmap $ \(QC _ x) -> QC [show x] x) v)
+>             ((fmap $ \(QC _ x) -> QC [string $ show x] x) v)
 >             ((fmap . fmap) storeShow es)
 
 The `storeShow` value uses the Partial instance of `Show` to store a
@@ -166,6 +181,13 @@ Properties
 >               | Implies Property Property
 >               | ForAll (Depth -> Depth) (Series Property)
 >               | Exists (Depth -> Depth) (Series Property)
+>  deriving (Typeable)
+
+> instance Data Property where
+>   toConstr _   = error "toConstr"
+>   gunfold _ _  = error "gunfold"
+>   dataTypeOf _ = error "datatypeOf"
+>   dataCast2 _  = error "dataCast2"
 
 > class PropertyLike a where
 >   mkProperty :: a -> Property
@@ -177,7 +199,7 @@ Zero-cost Series application
 
 > applZC :: Series (a -> b) -> Series a -> Series b
 > applZC (Series fs) (Series xs) = Series $ \d ->
->   [ f <*> x | d > 0, f <- fs d, let x = mergeTerms $ xs d ]
+>   [ f <*> x | f <- fs d, let x = mergeTerms $ xs d ]
 
 > class Testable a where
 >   mkTest :: Series a -> Series Property

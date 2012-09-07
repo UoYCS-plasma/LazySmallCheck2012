@@ -16,7 +16,7 @@ purposes.
 >   Partial, isException, inject, peek, unsafePeek,
 >   -- * Explicitly Partial Functors
 >   ExplicitF(..), ExplicitF2(..), BT(..), consBT, MaybePair(..),
->   toList_BT, toMaybe_MP) where
+>   toMList_BT, toMaybe_MP) where
 
 A few neccessary imports and hides.
 
@@ -135,9 +135,9 @@ empty nodes.
 > data BT a = Empty | Leaf a | Branch (BT a) (BT a) deriving Functor
 
 > consBT x xs = Leaf x `Branch` xs
-> toList_BT = flip aux []
->   where aux Empty        = id
->         aux (Leaf x)     = (x :)
+> toMList_BT = flip aux []
+>   where aux Empty        = (Nothing:)
+>         aux (Leaf x)     = (Just x :)
 >         aux (Branch l r) = aux l . aux r
 
 > instance Monad BT where
