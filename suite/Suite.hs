@@ -1,4 +1,5 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, DeriveDataTypeable,
+             TypeFamilies #-}
 import Control.Exception
 import Control.Monad
 import Data.Data
@@ -19,7 +20,7 @@ expect False = either (\(SomeException _) -> return ()) (const exitFailure) <=< 
 data Test = forall a. (Data a, Typeable a, Testable a) => 
             Test String a Bool Depth
 
-suite = [test1, test2, test3, test4, test5, test6]
+suite = [test1, test2, test3, test4, test5, test6, test7]
 
 ------------------------------------------------------------------------------------
 
@@ -68,3 +69,21 @@ test6 = Test "isPrefix_bad with existential"
         (\xs ys -> isPrefix xs ys *==>* 
                    existsDeeperBy (+2) (\xs' -> (xs ++ xs') == ys))
         True 4
+        
+-- Reductions to folds
+test7 = Test "All reductions are folds"
+        (\r -> let typ = r :: [Bool] -> Bool
+               in existsDeeperBy (+2) $ 
+                  \f z -> forAll $ \xs -> r xs == foldr f z xs)
+        False 5
+        
+-- Ready for more tests
+data Peano = Zero | Succ Peano deriving (Data, Typeable, Eq)
+
+instance Serial Peano where series = cons0 Zero <|> cons1 Succ
+instance Argument Peano where
+  type Base Peano = Either () (BaseThunk Peano)
+  toBase Zero     = Left ()
+  toBase (Succ n) = Right (toBaseThunk n)
+  fromBase (Left ()) = Zero
+  fromBase (Right n) = Succ (fromBaseThunk n)
