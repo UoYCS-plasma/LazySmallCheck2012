@@ -86,18 +86,18 @@ an exception predicate at their head.
 > showsPrecData :: forall e a. (Exception e, Data a) => Int -> Partial e a -> ShowS
 > showsPrecData p x | isException x = ('_':)
 > showsPrecData p (Partial t)
->   -- ** Is a tuple **
+>   -- Is a tuple
 >   | (isPrefixOf "(," . show . toConstr) t 
 >   = showParen True 
 >   $ foldr (.) id . intersperse (showChar ',')
 >   . gmapQ (showsPrecData appPrec . mkPartial) $ t
->   -- ** Is a cons **
+>   -- Is a cons
 >   | ((== "(:)") . show . toConstr) t
 >   = showParen (p > 5)
 >   $ gmapQi 0 (showsPrecData (5+1) . mkPartial) t
 >   . showChar ':'
 >   . gmapQi 1 (showsPrecData 5 . mkPartial) t
->   -- ** Is to be displayed prefix **
+>   -- Is to be displayed prefix
 >   | otherwise
 >   = showParen (constrArity t > 0 && p > appPrec)
 >   $ (showString . showConstr . toConstr $ t)
