@@ -1,9 +1,9 @@
 {-# LANGUAGE ParallelListComp #-}
 module Test.LazySmallCheck2012( 
   -- * Depth-bounded, demand-driven property testing
-  depthCheck, test,
+  depthCheck, test, Testable(),
   -- ** Property language
-  Property(),
+  Property(), PropertyLike(),
   tt, ff, inv, (*&&*), (*==>*), (==>),
   forAll, exists, forAllDeeperBy, existsDeeperBy, 
   -- * Serial and Series definition
@@ -14,7 +14,10 @@ module Test.LazySmallCheck2012(
   -- ** cons\<N\> combinators,
   cons, cons0, cons1, cons2, cons3, cons4, cons5,
   -- * Argument construction,
-  Argument(..), BaseThunk(), isoIntPrim, fromBaseThunk, toBaseThunk
+  Argument(..), BaseThunk(), isoIntPrim, fromBaseThunk, toBaseThunk,
+  -- * Default instances for 'Serial' and 'Argument'
+  module Test.LazySmallCheck2012.Instances,
+  module Test.LazySmallCheck2012.FunctionalValues.Instances
   ) where
 
 import Control.Applicative
