@@ -1,5 +1,21 @@
 {-# LANGUAGE ParallelListComp #-}
-module Test.LazySmallCheck2012 where
+module Test.LazySmallCheck2012( 
+  -- * Depth-bounded, demand-driven property testing
+  depthCheck, test,
+  -- ** Property language
+  Property(),
+  tt, ff, inv, (*&&*), (*==>*), (==>),
+  forAll, exists, forAllDeeperBy, existsDeeperBy, 
+  -- * Serial and Series definition
+  Serial(series), Series(),
+  -- * Series construction
+  module Control.Applicative, (\/), (><), applZC, 
+  deeperBy, zeroCost, drawnFrom,
+  -- ** cons\<N\> combinators,
+  cons, cons0, cons1, cons2, cons3, cons4, cons5,
+  -- * Argument construction,
+  Argument(..), BaseThunk(), isoIntPrim, fromBaseThunk, toBaseThunk
+  ) where
 
 import Control.Applicative
 import Data.Data
@@ -13,6 +29,7 @@ import Test.LazySmallCheck2012.FunctionalValues hiding (Sum)
 import Test.LazySmallCheck2012.Instances
 import Test.LazySmallCheck2012.FunctionalValues.Instances
 
+-- | Check a `Testable` `Property` to a specified depth.
 depthCheck :: (Data a, Typeable a) => Testable a => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
   (Sum n, Nothing) -> putStrLn $ "LSC: Property holds after "
@@ -21,5 +38,7 @@ depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
                                  ++ show n ++ " tests.\n"
                          print cx
                          exitFailure
-                     
-test p = mapM (flip depthCheck p) [0..]
+
+-- | Check a `Testable` `Property` for all depths. Runs forever.
+test :: (Data a, Typeable a) => Testable a => a -> IO ()
+test p = mapM_ (flip depthCheck p) [0..]

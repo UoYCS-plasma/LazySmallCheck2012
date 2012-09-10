@@ -1,0 +1,35 @@
+Name:                LazySmallCheck2012
+Version:             2012.0.1
+Synopsis:            Lazy SmallCheck with functional values and existentials!
+Description:         A property-based testing library enables users to perform
+                     lightweight verification of software. This package presents
+                     improvements to the Lazy SmallCheck property-based testing
+                     library. Users can now test properties that quantify over 
+                     first-order functional values and nest universal and
+                     existential quantifiers in properties. When a property 
+                     fails, Lazy SmallCheck now accurately expresses the 
+                     partiality of the counterexample. The necessary
+                     architectural changes to Lazy SmallCheck result in a
+                     performance speed-up. 
+Homepage:            https://github.com/UoYCS-plasma/LazySmallCheck2012
+License:             BSD3
+License-file:        LICENSE
+Author:              Jason S. Reich
+Maintainer:          jason at cs.york.ac.uk
+Category:            Testing
+Build-type:          Simple
+Extra-source-files:  README.md
+Cabal-version:       >=1.6
+
+Library
+  Exposed-modules:     Test.LazySmallCheck2012, Test.PartialValues, 
+                       Test.LazySmallCheck2012.Instances, 
+                       Test.LazySmallCheck2012.Core, 
+                       Test.LazySmallCheck2012.FunctionalValues, 
+                       Test.LazySmallCheck2012.FunctionalValues.Instances
+  Build-depends:       base >=4 && < 5, deepseq >= 1.2 && < 2,
+                       ghc >= 7 && < 8, syb >= 0.2 && < 0.4
+
+Source-Repository head
+  type:     git
+  location: https://github.com/UoYCS-plasma/LazySmallCheck2012.git

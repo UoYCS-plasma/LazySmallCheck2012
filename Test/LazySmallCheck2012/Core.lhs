@@ -93,6 +93,8 @@ provided such that the depth-bounding and partiality functionality is
 introduced and preserved.
 
 > type Depth = Int
+>
+> -- | A depth-bounded generator of type `a`.
 > newtype Series a = Series { runSeries :: Depth -> [Term a] }
 >
 > instance Functor Series where
@@ -122,9 +124,13 @@ When instantiating quantification variables, the QuantInfo
 representation is stored. The instantiation is performed
 automatically for types satisfying the Serial type-class.
 
+> -- | The depth-bounded generator of type 'a'.
 > class (Data a, Typeable a) => Serial a where
+>   -- | Return the 'Series' for this type.
 >   series :: Series a
 >
+>   -- | Return the 'Series' for this type, storing the pretty-printed
+>   -- value in the quantification context.
 >   seriesWithCtx :: Series a
 >   seriesWithCtx = Series $ (fmap . fmap) storeShow $ runSeries series
 >     where storeShow (Term v es) = Term 
@@ -161,18 +167,30 @@ Runciman et al. (2008).
 >          (a -> b -> c -> d -> e -> o) -> Series o
 > cons5 f = f <$> series <*> series <*> series <*> series <*> series
 >
+> -- | Series union. Synonym for '<|>'.
 > (\/) :: Series a -> Series a -> Series a
 > (\/) = (<|>)
 >
+> -- | Series application. Synonym for '<*>'.
 > (><) :: Series (a -> b) -> Series a -> Series b
 > (><) = (<*>)
 >
+> -- | Adjust the depth of a series by pre-composing a depth function.
 > deeperBy :: (Int -> Int) -> Series a -> Series a
 > deeperBy f xs = Series $ \d -> runSeries xs (f d)
 >
+> -- | Offset the depth cost of an application.
+> zeroCost :: Series a -> Series a
 > zeroCost = deeperBy (+1)
 >
-> drawnFrom xs = Series $ map pure . xs
+> -- | Zero-cost Series application.
+> applZC :: Series (a -> b) -> Series a -> Series b
+> applZC (Series fs) (Series xs) = Series $ \d ->
+>   [ f <*> x | f <- fs d, let x = mergeTerms $ xs d ]
+>
+> -- | Build a series from a depth-determined list of elements.
+> drawnFrom :: (Depth -> [a]) -> Series a
+> drawnFrom f = Series $ map pure . f
 
 Properties
 ----------
@@ -195,12 +213,6 @@ Properties
 > instance PropertyLike Bool where mkProperty = Lift
 > instance PropertyLike Property where mkProperty = id
 
-Zero-cost Series application
-
-> applZC :: Series (a -> b) -> Series a -> Series b
-> applZC (Series fs) (Series xs) = Series $ \d ->
->   [ f <*> x | f <- fs d, let x = mergeTerms $ xs d ]
-
 > class Testable a where
 >   mkTest :: Series a -> Series Property
 >   mkTestWithCtx :: (Data a, Typeable a) => Series a -> Series Property
@@ -219,22 +231,41 @@ Zero-cost Series application
 
 Smart constructors for `Property`s.
 
+> -- | 'Property' equivalent to 'True'.
+> tt :: Property
 > tt = Lift True
+> -- | 'Property' equivalent to 'False'.
+> ff :: Property
 > ff = Lift False
 >
+> -- | 'Property' equivalent to 'not'.
 > inv :: PropertyLike a => a -> Property
 > inv = Not . mkProperty
 >
+> -- | 'Property' equivalent to '&&'.
+> (*&&*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
 > xs *&&* ys  = mkProperty xs `And` mkProperty ys
+> -- | 'Property' equivalent to implication, '==>'.
+> (*==>*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
 > xs *==>* ys = mkProperty xs `Implies` mkProperty ys
 >
-> exists, forAll :: Testable a => a -> Property
-> exists = Exists id . mkTest . pure
+> -- | Universal quantification. Space searched is bounded by the
+> -- global depth.
+> forAll :: Testable a => a -> Property
 > forAll = ForAll id . mkTest . pure
+> -- | Existential quantification. Space searched is bounded by the
+> -- global depth.
+> exists :: Testable a => a -> Property
+> exists = Exists id . mkTest . pure
 >
-> existsDeeperBy, forAllDeeperBy :: Testable a => (Depth -> Depth) -> a -> Property
-> existsDeeperBy f = Exists f . mkTest . pure
+> -- | Universal quantification. Space searched is 
+> -- global depth changed by some depth function.
+> forAllDeeperBy :: Testable a => (Depth -> Depth) -> a -> Property
 > forAllDeeperBy f = ForAll f . mkTest . pure
+> -- | Existential quantification. Space searched is 
+> -- global depth changed by some depth function.
+> existsDeeperBy :: Testable a => (Depth -> Depth) -> a -> Property
+> existsDeeperBy f = Exists f . mkTest . pure
 
 Refute
 ------
@@ -276,6 +307,7 @@ through the `runPartial` function.
 >       | n == n' = first (mappend $ Sum m) (terms (es ps))
 >     refineWith es x = x
 
+> -- | Boolean lazy implication.
 > (==>) :: Bool -> Bool -> Bool
 > False ==> _ = True
 > True  ==> x = x

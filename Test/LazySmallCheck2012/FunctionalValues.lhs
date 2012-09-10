@@ -1,5 +1,5 @@
 > {-# LANGUAGE TypeOperators, GADTs, TypeFamilies, 
->              Rank2Types, UndecidableInstances, ScopedTypeVariables #-}
+>              UndecidableInstances, ScopedTypeVariables #-}
 > module Test.LazySmallCheck2012.FunctionalValues where
 >
 > import Control.Applicative
@@ -21,6 +21,8 @@
 >   fromBase :: Base k -> k
 >
 > data BaseThunk a = BaseThunk { forceBase :: Base a }
+>
+> data Trans a = Trans a
 >
 > toBaseThunk :: Argument k => k -> BaseThunk k
 > toBaseThunk = BaseThunk . toBase
@@ -46,6 +48,8 @@
 >   Thnk :: Level2 (Base k) v -> Level2 (BaseThunk k) v
 >   Sum  :: Level2 j v -> Level2 k v -> Level2 (Either j k) v
 >   Pro  :: Level1 j (Level1 k v) -> Level2 (j, k) v
+>   Map  :: forall k b v. (k -> b) -> (b -> k) ->
+>           Level2 b v -> Level2 (Trans k) v
 >   Assc :: [v] -> v -> Level2 Prim v
 >
 > applyT :: (k :->: v) -> k -> v

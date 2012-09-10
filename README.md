@@ -6,7 +6,7 @@ Lazy SmallCheck with functional values and existentials!
 _This code is mid-clean up. Many features are not yet
 included. Watch this space._
 
-A property-based testing library enables users to perfor
+A property-based testing library enables users to perform
 lightweight verification of software. This repo presents
 improvements to the Lazy SmallCheck property-based testing
 library. Users can now test properties that quantify over 
