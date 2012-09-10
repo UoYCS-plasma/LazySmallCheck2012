@@ -3,6 +3,8 @@ LazySmallCheck2012
 
 Lazy SmallCheck with functional values and existentials!
 
+[![Build Status](https://secure.travis-ci.org/UoYCS-plasma/LazySmallCheck2012.png)](http://travis-ci.org/UoYCS-plasma/LazySmallCheck2012)
+
 _This code is mid-clean up. Many features are not yet
 included. Watch this space._
 
