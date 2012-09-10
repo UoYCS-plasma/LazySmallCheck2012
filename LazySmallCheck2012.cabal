@@ -18,7 +18,7 @@ Author:              Jason S. Reich
 Maintainer:          jason at cs.york.ac.uk
 Category:            Testing
 Build-type:          Simple
-Extra-source-files:  README.md
+Extra-source-files:  README.md suite/Suite.hs
 Cabal-version:       >=1.6
 
 Library
@@ -29,6 +29,11 @@ Library
                        Test.LazySmallCheck2012.FunctionalValues.Instances
   Build-depends:       base >=4 && < 5, deepseq >= 1.2 && < 2,
                        ghc >= 7 && < 8, syb >= 0.2 && < 0.4
+
+Test-Suite suite
+  type:                exitcode-stdio-1.0
+  main-is:             suite/Suite.hs
+  Build-depends:       base >=4 && < 5
 
 Source-Repository head
   type:     git
