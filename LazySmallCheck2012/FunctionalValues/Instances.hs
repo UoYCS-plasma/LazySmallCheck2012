@@ -5,6 +5,7 @@ import Control.Applicative
 import Data.Data
 import Data.Typeable
 
+import Test.LazySmallCheck2012.Instances
 import Test.LazySmallCheck2012.FunctionalValues
 
 instance Argument () where
@@ -61,3 +62,19 @@ instance (Argument a, Argument b) => Argument (Either a b) where
   type Base (Either a b) = Either (BaseThunk a) (BaseThunk b)
   toBase   = either (Left . toBaseThunk) (Right . toBaseThunk)
   fromBase = either (Left . fromBaseThunk) (Right . fromBaseThunk)
+
+instance Argument Nat where
+  type Base Nat = Prim
+  toBase   = Prim . unNat
+  fromBase = Nat . unPrim
+
+instance Argument Int where
+  type Base Int = Prim
+  toBase = fst $ isoIntPrim 0
+  fromBase = snd $ isoIntPrim 0
+
+instance Argument Char where
+  type Base Char = Prim
+  toBase = (fst $ isoIntPrim (fromEnum 'a')) . fromEnum
+  fromBase = toEnum . (snd $ isoIntPrim (fromEnum 'a'))
+
