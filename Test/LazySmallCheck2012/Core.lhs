@@ -13,6 +13,9 @@
 >
 > import Test.PartialValues
 
+> infixr 3 *&&*
+> infixl 1 *==>*, ==>
+
 Special Lazy SmallCheck exceptions
 ----------------------------------
 

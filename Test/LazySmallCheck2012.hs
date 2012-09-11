@@ -44,4 +44,6 @@ depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
 
 -- | Check a `Testable` `Property` for all depths. Runs forever.
 test :: (Data a, Typeable a) => Testable a => a -> IO ()
-test p = mapM_ (flip depthCheck p) [0..]
+test p = sequence_ [ do putStrLn $ "LSC: Depth " ++ show d ++ ":"
+                        depthCheck d p
+                   | d <- [0..] ]
