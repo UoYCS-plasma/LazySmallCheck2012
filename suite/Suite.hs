@@ -21,7 +21,7 @@ expect False = either (\(SomeException _) -> return ()) (const exitFailure) <=< 
 data Test = forall a. (Data a, Typeable a, Testable a) => 
             Test String a Bool Depth
 
-suite = [test1, test2, test3, test4, test5, test6, test7 {- , test8 -}]
+suite = [test1, test2, test3, test4, test5, test6, test7, test8]
 
 ------------------------------------------------------------------------------------
 
@@ -89,8 +89,8 @@ instance Argument Peano where
   type Base Peano = Either () (BaseThunk Peano)
   toBase Zero     = Left ()
   toBase (Succ n) = Right (toBaseThunk n)
-  fromBase (Left ()) = Zero
-  fromBase (Right n) = Succ (fromBase $ forceBase n)
+  fromBase (Left  _) = Zero
+  fromBase (Right n) = Succ (fromBaseThunk n)
 
 test8 = Test "foldr1 is the same as foldl1"
         (\f xs -> let typ = f :: Peano -> Peano -> Peano
