@@ -1,0 +1,27 @@
+-- .ghci for creating a Lazy SmallCheck 2012 environment
+
+:{
+let command_lsc = unlines [ ":load Test.LazySmallCheck2012"
+                          , ":set prompt \"*LSC2012> \""
+                          , "putStrLn \"\\n\""
+                          , "putStrLn \" ##########################################\""
+                          , "putStrLn \" #  LazySmallCheck 2012 GHCi Environment  #\""
+                          , "putStrLn \" ##########################################\""
+                          , "putStrLn \" :suite   --- Run test suite.\""
+                          , "putStrLn \" :lsc2012 --- Reset environment.\""
+                          , "putStrLn \" :readme  --- View README.md.\""
+                          , "putStrLn \"\""]
+:}
+:{
+let command_suite = unlines [ ":load suite/Suite.hs"
+                            , "main"
+                            , "putStr \"\\nPress <ENTER> to continue...\""
+                            , "getLine"
+                            , ":lsc2012"]
+:}
+
+:def suite   const(return $ command_suite)
+:def lsc2012 const(return $ command_lsc)
+:def readme  const(return $ ":! less README.md")
+
+:lsc2012
