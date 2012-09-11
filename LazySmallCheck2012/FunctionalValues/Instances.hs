@@ -64,17 +64,17 @@ instance (Argument a, Argument b) => Argument (Either a b) where
   fromBase = either (Left . fromBaseThunk) (Right . fromBaseThunk)
 
 instance Argument Nat where
-  type Base Nat = Prim
-  toBase   = Prim . unNat
-  fromBase = Nat . unPrim
+  type Base Nat = Nat
+  toBase   = id
+  fromBase = id
 
 instance Argument Int where
-  type Base Int = Prim
-  toBase = fst $ isoIntPrim 0
-  fromBase = snd $ isoIntPrim 0
+  type Base Int = Nat
+  toBase = fst $ isoIntNat 0
+  fromBase = snd $ isoIntNat 0
 
 instance Argument Char where
-  type Base Char = Prim
-  toBase = (fst $ isoIntPrim (fromEnum 'a')) . fromEnum
-  fromBase = toEnum . (snd $ isoIntPrim (fromEnum 'a'))
+  type Base Char = Nat
+  toBase = (fst $ isoIntNat (fromEnum 'a')) . fromEnum
+  fromBase = toEnum . (snd $ isoIntNat (fromEnum 'a'))
 
