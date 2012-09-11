@@ -8,6 +8,7 @@ import System.Exit
 
 import Test.LazySmallCheck2012
 import Test.LazySmallCheck2012.Core
+import Test.LazySmallCheck2012.FunctionalValues
 
 main = sequence_ [ do putStrLn $ "\n## Test '" ++ str ++ "': "
                       expect v $ mapM_ (`depthCheck` t) [0..d]
@@ -20,7 +21,7 @@ expect False = either (\(SomeException _) -> return ()) (const exitFailure) <=< 
 data Test = forall a. (Data a, Typeable a, Testable a) => 
             Test String a Bool Depth
 
-suite = [test1, test2, test3, test4, test5, test6, test7]
+suite = [test1, test2, test3, test4, test5, test6, test7 {- , test8 -}]
 
 ------------------------------------------------------------------------------------
 
@@ -69,16 +70,19 @@ test6 = Test "isPrefix_bad with existential"
         (\xs ys -> isPrefix xs ys *==>* 
                    existsDeeperBy (+2) (\xs' -> (xs ++ xs') == ys))
         True 4
-        
+                
+------------------------------------------------------------------------------------
+
+-- From Reich, Naylor and Runciman, 2012
+
 -- Reductions to folds
 test7 = Test "All reductions are folds"
         (\r -> let typ = r :: [Bool] -> Bool
                in existsDeeperBy (+2) $ 
                   \f z -> forAll $ \xs -> r xs == foldr f z xs)
         False 5
-        
--- Ready for more tests
-data Peano = Zero | Succ Peano deriving (Data, Typeable, Eq)
+
+data Peano = Zero | Succ Peano deriving (Data, Typeable, Eq, Show)
 
 instance Serial Peano where series = cons0 Zero <|> cons1 Succ
 instance Argument Peano where
@@ -86,4 +90,9 @@ instance Argument Peano where
   toBase Zero     = Left ()
   toBase (Succ n) = Right (toBaseThunk n)
   fromBase (Left ()) = Zero
-  fromBase (Right n) = Succ (fromBaseThunk n)
+  fromBase (Right n) = Succ (fromBase $ forceBase n)
+
+test8 = Test "foldr1 is the same as foldl1"
+        (\f xs -> let typ = f :: Peano -> Peano -> Peano
+                  in (not.null) xs ==> (foldr1 f xs == foldl1 f xs))
+        False 5
