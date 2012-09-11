@@ -1,6 +1,7 @@
 {-# LANGUAGE ExistentialQuantification, DeriveDataTypeable,
              DeriveFunctor, TypeFamilies #-}
 {-# OPTIONS_GHC -ignore-dot-ghci #-}
+
 import Control.Exception
 import Control.Monad
 import Data.Data
@@ -25,7 +26,8 @@ data Test = forall a. (Data a, Typeable a, Testable a) =>
             Test String a Bool Depth
 
 suite = [ test1, test2, test3, test4, test5, test6, test7, test8
-        , test9, test10, test11a, test11b, test11c, test12a ]
+        , test9, test10, test11a, test11b, test11c
+        , test12a, test12b, test12c ]
 
 ------------------------------------------------------------------------------------
 
@@ -204,3 +206,15 @@ test12a = Test "Foo obeys Cobind/Coreturn"
           (\xs -> let typ_xs = xs :: Foo Bool
                   in cobind coreturn xs == xs)
           True 5
+          
+test12b = Test "Foo obeys Coreturn/Cobind"
+          (\f xs -> let typ_f = f :: Foo Bool -> Bool 
+                    in (coreturn . cobind f) xs == f xs)
+          True 5
+
+test12c = Test "Foo obeys Cobind/Cobind"
+          (\f g xs -> let typ_f = f :: Foo Bool -> Bool 
+                          typ_g = g :: Foo Bool -> Bool 
+                      in (cobind f . cobind g) xs == cobind (f . cobind g) xs)
+          False 5
+
