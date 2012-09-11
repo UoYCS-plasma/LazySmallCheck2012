@@ -20,6 +20,46 @@ architectural changes to Lazy SmallCheck result in a
 performance speed-up. All of these improvements are
 demonstrated through several practical examples.
 
+Motivation
+----------
+
+Consider the following conjectured property that in Haskell
+all reductions on lists of Boolean values to a single
+Boolean value can be expressed as a `foldr`. 
+
+``` haskell
+prop_ReduceFold :: ([Bool] -> Bool) -> Property
+prop_ReduceFold r = existsDeeperBy (+2) $ \f z -> 
+                    forAll $ \xs -> r xs == foldr f z xs
+```
+
+When this property is tested using our advanced version of *Lazy
+SmallCheck*, a small counterexample is found for `r`.
+
+    >>> test prop_ReduceFold
+    ...
+    LSC: Depth 2:
+    LSC: Counterexample found after 374 tests.
+    
+    Var 0: { [] -> False
+           ; _:[] -> False
+           ; _:_:_ -> True }
+    *** Exception: ExitFailure 1
+	   
+Reading the output in the style of Haskell's case-expression syntax
+in explicit layout, this function tests for a multi-item list. Several
+new features of Lazy SmallCheck are demonstrated by this example.
+First, note that two of the quantified variables, `r` and `f`,
+are *functional values*. Secondly, an *existential quantifier* is used
+in the property definition. Thirdly, the property involves *nesting of
+universal and existential quantifiers* inside the property.
+Finally, the counterexample found for `r` is *concise* and easy to
+understand.
+
+The previous version of Lazy SmallCheck did not include any of these
+features.
+
+
 Usage
 -----
 
