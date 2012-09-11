@@ -18,7 +18,7 @@ Author:              Jason S. Reich
 Maintainer:          jason at cs.york.ac.uk
 Category:            Testing
 Build-type:          Simple
-Extra-source-files:  README.md suite/Suite.hs
+Extra-source-files:  README.md suite/Suite.hs .ghci
 Cabal-version:       >=1.6
 
 Library

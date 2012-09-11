@@ -17,6 +17,7 @@ main = do mapM_ runTest suite
 
 runTest (Test str t v d) = do putStrLn $ "\n## Test '" ++ str ++ "': "
                               expect v $ mapM_ (`depthCheck` t) [0..d]
+                              putStrLn $ "## Test response correct."
 
 expect :: Bool -> IO () -> IO ()
 expect True  = id
