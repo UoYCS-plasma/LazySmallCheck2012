@@ -103,7 +103,8 @@ introduced and preserved.
 > instance Applicative Series where
 >   pure = Series . pure3
 >   Series fs <*> Series xs = Series $ \d ->
->     [ f <*> x | d > 0, f <- fs d, let x = mergeTerms $ xs (d - 1) ]
+>     [ f <*> mergeTerms x | d > 0, f <- fs d
+>                          , let x = xs (d - 1), (not.null) x ]
 >
 > mergeTerms :: [Term a] -> Term a
 > mergeTerms []  = error "LSC: Cannot merge empty terms."
@@ -186,7 +187,7 @@ Runciman et al. (2008).
 > -- | Zero-cost Series application.
 > applZC :: Series (a -> b) -> Series a -> Series b
 > applZC (Series fs) (Series xs) = Series $ \d ->
->   [ f <*> x | f <- fs d, let x = mergeTerms $ xs d ]
+>   [ f <*> mergeTerms x | f <- fs d, let x = xs d, (not.null) x ]
 >
 > -- | Build a series from a depth-determined list of elements.
 > drawnFrom :: (Depth -> [a]) -> Series a
