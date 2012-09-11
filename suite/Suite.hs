@@ -10,9 +10,10 @@ import Test.LazySmallCheck2012
 import Test.LazySmallCheck2012.Core
 import Test.LazySmallCheck2012.FunctionalValues
 
-main = sequence_ [ do putStrLn $ "\n## Test '" ++ str ++ "': "
-                      expect v $ mapM_ (`depthCheck` t) [0..d]
-                 | Test str t v d <- suite ]
+main = do sequence_ [ do putStrLn $ "\n## Test '" ++ str ++ "': "
+                         expect v $ mapM_ (`depthCheck` t) [0..d]
+                    | Test str t v d <- suite ]
+          putStrLn "\nSuite: Test suite complete."
 
 expect :: Bool -> IO () -> IO ()
 expect True  = id

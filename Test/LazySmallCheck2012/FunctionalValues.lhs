@@ -22,6 +22,9 @@ the data-types of arguments as *tries*, also known as prefix
 trees.  Lazy SmallCheck can then generate an appropriate trie and
 convert it into the requried function.
 
+Trie structure
+--------------
+
 First we shall describe tries on a known subset of Haskell datatypes.
 Notationally, `k :->: v` is a trie where keys are of type `k` and
 values are of type `v`.
@@ -64,7 +67,7 @@ function `($)`. It is used to lookup a key and return a value.
 > applyT :: (k :->: v) -> k -> v
 > applyT = applyL1
 >
-> applyL1 :: (Level1 k v) -> k -> v
+> applyL1 :: Level1 k v -> k -> v
 > applyL1 (Wild v) = const v
 > applyL1 (Case t) = applyL2 t
 >
@@ -83,8 +86,10 @@ prevent the extraction of defined others.
 
 > tabulateT :: (k :->: v) -> BT (Partial LSC k, v)
 > tabulateT = tabulateL1
- 
-> tabulateL1 :: (Level1 k v) -> BT (Partial LSC k, v)
+>
+> wild = inject $ Expand (0, [])
+>
+> tabulateL1 :: Level1 k v -> BT (Partial LSC k, v)
 > tabulateL1 (Wild v) = Leaf (wild, v)
 > tabulateL1 (Case t) = tabulateL2 t
 >
@@ -98,67 +103,124 @@ prevent the extraction of defined others.
 >                            (k, v)  <- tabulateL1 t'
 >                            return ((,) <$> j <*> k, v)
 > tabulateL2 (Natu m d) = foldr Branch (Leaf (wild, d)) 
->                         [ Leaf (pure (Nat k), v) | (k, v) <- zip [0..] m ]
+>                         [ Leaf (pure (Nat k), v) 
+>                         | (k, v) <- zip [0..] m ]
 
+Serial instances for tries
+-------------------------- 
 
+The function `seriesT` generates a trie for keys `k` and values `v`
+when those type variables belong to appropriate classes.
 
-> class L2Serial (Base k) => Argument k where
+> seriesT :: (SerialL2 k, Serial v) => Series (k :->: v)
+> seriesT = seriesL1 series
+>
+> seriesL1 :: SerialL2 k => Series v -> Series (Level1 k v)
+> seriesL1 srs = (pure Wild `applZC` srs) 
+>            <|> (pure Case <*> seriesL2 srs)
+
+The `SerialL2` class is used to eliminate type-checking problems of
+doing it all as one `Serial` instance. It is a class of key types that
+if, given a series for the values, can construct a trie based on that
+key and values.
+
+> class SerialL2 k where
+>   seriesL2 :: Series v -> Series (Level2 k v)
+
+In these instances, the zero cost application combinator is used to
+prevent wasted depth. Most are standard ADT series instances.
+
+> instance SerialL2 () where
+>   seriesL2 srs = pure Valu `applZC` srs
+>
+> instance (SerialL2 j, SerialL2 k) => SerialL2 (Either j k) where
+>   seriesL2 srs = pure Sum `applZC` seriesL2 srs `applZC` seriesL2 srs
+>
+> instance (SerialL2 j, SerialL2 k) => SerialL2 (j, k) where
+>   seriesL2 srs = pure Prod `applZC` seriesL1 (seriesL1 srs)
+
+The  `SerialL2 Nat` definition uses a special formulation of list
+series to ensure that the list length is always the maximum the depth
+allows  and that all elements are of the same depth.
+
+> instance SerialL2 Nat where
+>   seriesL2 srs = pure Natu `applZC` fullSize 0 `applZC` srs
+>     where fullSize o = onlyZero [] <|> 
+>                        ((:) <$> deeperBy (+ o) srs <*> fullSize (o + 1))
+>           onlyZero x = Series $ \d -> [ pure x | d == 0 ]
+>
+> instance Argument k => SerialL2 (BaseThunk k) where
+>   seriesL2 srs = pure Thnk `applZC` seriesL2 srs
+
+Non-base types
+--------------
+
+For key types that are not of these standard forms, the `Argument`
+type-class provides a method of presenting an isomorphism to these 
+`Base` types.
+
+> class (SerialL2 (Base k), Typeable k, Data k) => Argument k where
 >   type Base k
 >   toBase   :: k -> Base k
 >   fromBase :: Base k -> k
->
+
+The `BaseThunk` wrapped is a type-level promise that a type can be
+translated into a `Base` type. It is useful for describing recursive
+definitions without provoking the infinite type error.
+
 > data BaseThunk a = BaseThunk { forceBase :: Base a }
->
+
+Standard combinators are supplied for constructing these isomorphisms.
+
 > toBaseThunk :: Argument k => k -> BaseThunk k
 > toBaseThunk = BaseThunk . toBase
 > fromBaseThunk :: Argument k => BaseThunk k -> k
 > fromBaseThunk = fromBase  . forceBase
->
+
+The `isoIntNat` combinator provites a translation from integer-like
+types to `Nat`urals.
+
 > isoIntNat :: Int -> (Int -> Nat, Nat -> Int)
 > isoIntNat pivot = (to . (+) (- pivot), (+ pivot) . from)
 >   where to n | 0 <= n    = Nat (n * 2)
 >              | otherwise = Nat ((negate n * 2) + 1)
 >         from (Nat n) | even n = n `div` 2
 >                       | odd n  = negate ((n - 1) `div` 2)
+
+See Test.LazySmallCheck2012.FunctionalValues.Instances for examples
+of these.
+
+The Serial instance for functional values
+-----------------------------------------
+
+These are used to produce the `Serial` instance for function types.
+The `series` function is very easy to understand --- create the
+appropriate trie and then convert it to an appropriate Haskell 
+function.
+
+The `seriesWithCtx` is more complex. It retrieves the appropriate
+pretty-printed version of values from the context and uses that
+to construct and pretty printed version of the trie *before* it is
+converted into a Haskell function.
+
+> instance (Argument a, Serial b) => Serial (a -> b) where
 >
+>   series = pure (\t k -> applyT t (toBase k)) `applZC` seriesT
 >
+>   seriesWithCtx = pure (\t k -> applyT t (toBase k)) 
+>                            `applZC` 
+>                   Series (fmap2 storeShow $ runSeries $ seriesL1 seriesWithCtx)
+>     where
+>       storeShow (Term v es) = Term
+>         ((fmap $ \(QC ctx t) -> QC [combine ctx t] t) v)
+>         ((fmap . fmap) storeShow es)
+>       combine ctx t = Braces $ LAlign $
+>                       [ (show ((fromBase <$> k) :: Partial LSC a)
+>                             ++  " -> ") `Append` v
+>                       | (Just (k, _), v) <- trieToList t `zip` ctx
+>                       , show v /= "_" ]
 >
->
-> wild = inject $ Expand (0, [])
->
-> l1series :: L2Serial k => Series v -> Series (Level1 k v)
-> l1series srs = (pure Wild `applZC` srs) <|> (pure Case <*> l2series srs)
->
-> class L2Serial k where
->   l2series :: Series v -> Series (Level2 k v)
->
-> instance L2Serial () where
->   l2series srs = pure Valu `applZC` srs
->
-> instance Argument k => L2Serial (BaseThunk k) where
->   l2series srs = pure Thnk `applZC` l2series srs
->
-> instance (L2Serial j, L2Serial k) => L2Serial (Either j k) where
->   l2series srs = pure Sum `applZC` l2series srs `applZC` l2series srs
->
-> instance (L2Serial j, L2Serial k) => L2Serial (j, k) where
->   l2series srs = pure Prod `applZC` l1series (l1series srs)
->
-> instance L2Serial Nat where
->   l2series srs = pure Natu `applZC` fullSize 0 `applZC` srs
->     where fullSize o = onlyZero [] <|> ((:) <$> deeperBy (+ o) srs <*> fullSize (o + 1))
->           onlyZero x = Series $ \d -> [ pure x | d == 0 ]
->
-> instance (Argument a, L2Serial (Base a), 
->           Typeable a, Typeable b, Data a, Data b, Serial b) =>
->          Serial (a -> b) where
->   series = pure ((. toBase) . applyT) `applZC` l1series series
->   seriesWithCtx = pure ((. toBase) . applyT) `applZC` early (l1series seriesWithCtx)
->     where early = Series . (fmap . fmap) storeShow . runSeries
->           storeShow (Term v es) = Term
->             ((fmap $ \(QC ctx t) -> QC [combine ctx t] t) v)
->             ((fmap . fmap) storeShow es)
->           combine ctx = Braces . LAlign . map (\(v, Just (k, _)) -> Append (show ((fromBase <$> join k) :: Partial LSC a) ++ " -> ") v) .
->                         filter ((/= "_") . show . fst) . filter (isJust . snd) . zip ctx . 
->                         map (maybe Nothing (toMaybe_MP . absorb2 . fmap JustPair)) .
->                         toMList_BT . absorb . fmap tabulateT
+> trieToList :: Partial LSC (k :->: v) -> [Maybe (Partial LSC k, Partial LSC v)]
+> trieToList = fmap2 (first join) . fmap join
+>            . fmap2 (toMaybe_MP . absorb2 . fmap JustPair)
+>            . toMList_BT . absorb . fmap tabulateT
