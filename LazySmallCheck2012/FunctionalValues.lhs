@@ -1,5 +1,5 @@
-> {-# LANGUAGE TypeOperators, GADTs, TypeFamilies, 
->              UndecidableInstances, ScopedTypeVariables #-}
+> {-# LANGUAGE TypeOperators, GADTs, TypeFamilies, FlexibleContexts,
+>              ScopedTypeVariables #-}
 > module Test.LazySmallCheck2012.FunctionalValues where
 >
 > import Control.Applicative
@@ -15,14 +15,12 @@
 >
 > type (:->:) = Level1
 >
-> class Argument k where
+> class L2Serial (Base k) => Argument k where
 >   type Base k
 >   toBase   :: k -> Base k
 >   fromBase :: Base k -> k
 >
 > data BaseThunk a = BaseThunk { forceBase :: Base a }
->
-> data Trans a = Trans a
 >
 > toBaseThunk :: Argument k => k -> BaseThunk k
 > toBaseThunk = BaseThunk . toBase
@@ -48,8 +46,6 @@
 >   Thnk :: Level2 (Base k) v -> Level2 (BaseThunk k) v
 >   Sum  :: Level2 j v -> Level2 k v -> Level2 (Either j k) v
 >   Pro  :: Level1 j (Level1 k v) -> Level2 (j, k) v
->   Map  :: forall k b v. (k -> b) -> (b -> k) ->
->           Level2 b v -> Level2 (Trans k) v
 >   Assc :: [v] -> v -> Level2 Prim v
 >
 > applyT :: (k :->: v) -> k -> v
@@ -82,30 +78,30 @@
 > tabulateT' (Assc m d) = foldr Branch (Leaf (wild, d)) 
 >                         [ Leaf (pure (Prim k), v) | (k, v) <- zip [0..] m ]
 >
-> l1series :: Level2Serial k => Series v -> Series (Level1 k v)
+> l1series :: L2Serial k => Series v -> Series (Level1 k v)
 > l1series srs = (pure Wild `applZC` srs) <|> (pure Case <*> l2series srs)
 >
-> class Level2Serial k where
+> class L2Serial k where
 >   l2series :: Series v -> Series (Level2 k v)
 >
-> instance Level2Serial () where
+> instance L2Serial () where
 >   l2series srs = pure Valu `applZC` srs
 >
-> instance Level2Serial (Base k) => Level2Serial (BaseThunk k) where
+> instance Argument k => L2Serial (BaseThunk k) where
 >   l2series srs = pure Thnk `applZC` l2series srs
 >
-> instance (Level2Serial j, Level2Serial k) => Level2Serial (Either j k) where
+> instance (L2Serial j, L2Serial k) => L2Serial (Either j k) where
 >   l2series srs = pure Sum `applZC` l2series srs `applZC` l2series srs
 >
-> instance (Level2Serial j, Level2Serial k) => Level2Serial (j, k) where
+> instance (L2Serial j, L2Serial k) => L2Serial (j, k) where
 >   l2series srs = pure Pro `applZC` l1series (l1series srs)
 >
-> instance Level2Serial Prim where
+> instance L2Serial Prim where
 >   l2series srs = pure Assc `applZC` fullSize 0 `applZC` srs
 >     where fullSize o = onlyZero [] <|> ((:) <$> deeperBy (+ o) srs <*> fullSize (o + 1))
 >           onlyZero x = Series $ \d -> [ pure x | d == 0 ]
 >
-> instance (Argument a, Level2Serial (Base a), 
+> instance (Argument a, L2Serial (Base a), 
 >           Typeable a, Typeable b, Data a, Data b, Serial b) =>
 >          Serial (a -> b) where
 >   series = pure ((. toBase) . applyT) `applZC` l1series series
