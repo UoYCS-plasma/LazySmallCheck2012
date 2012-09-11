@@ -57,9 +57,9 @@ key are handled;
 > data Level2 k v where
 >   Valu :: v -> Level2 () v
 >   Sum  :: Level2 j v -> Level2 k v -> Level2 (Either j k) v
->   Prod :: Level1 j (Level1 k v) -> Level2 (j, k) v
+>   Prod :: Level2 j (Level2 k v) -> Level2 (j, k) v
 >   Natu :: [v] -> v -> Level2 Nat v
->   Thnk :: Level2 (Base k) v -> Level2 (BaseThunk k) v
+>   Thnk :: Level1 (Base k) v -> Level2 (BaseThunk k) v
 
 The `applyT` function is a trie equivalent of the explicit application
 function `($)`. It is used to lookup a key and return a value.
@@ -73,11 +73,11 @@ function `($)`. It is used to lookup a key and return a value.
 >
 > applyL2 :: Level2 k v -> k -> v
 > applyL2 (Valu v)   _             = v
-> applyL2 (Thnk t)   (BaseThunk k) = t `applyL2` k
 > applyL2 (Sum  t _) (Left k)      = t `applyL2` k
 > applyL2 (Sum  _ t) (Right k)     = t `applyL2` k
-> applyL2 (Prod t)   (j, k)        = t `applyL1` j `applyL1` k
+> applyL2 (Prod t)   (j, k)        = t `applyL2` j `applyL2` k
 > applyL2 (Natu m d) (Nat k)       = foldr const d $ drop k m
+> applyL2 (Thnk t)   (BaseThunk k) = t `applyL1` k
 
 The `tabulateT` function converts a trie into an
 pseudo-association-list. Binary trees are used instead of an list to
@@ -95,16 +95,16 @@ prevent the extraction of defined others.
 >
 > tabulateL2 :: Level2 k v -> BT (Partial LSC k, v)
 > tabulateL2 (Valu v)   = Leaf (pure (), v)
-> tabulateL2 (Thnk t)   = fmap (first $ fmap BaseThunk) (tabulateL2 t)
 > tabulateL2 (Sum  l r) = fmap (first $ fmap Left) (tabulateL2 l)
 >                            `Branch`
 >                         fmap (first $ fmap Right) (tabulateL2 r)
-> tabulateL2 (Prod t)   = do (j, t') <- tabulateL1 t
->                            (k, v)  <- tabulateL1 t'
+> tabulateL2 (Prod t)   = do (j, t') <- tabulateL2 t
+>                            (k, v)  <- tabulateL2 t'
 >                            return ((,) <$> j <*> k, v)
 > tabulateL2 (Natu m d) = foldr Branch (Leaf (wild, d)) 
 >                         [ Leaf (pure (Nat k), v) 
 >                         | (k, v) <- zip [0..] m ]
+> tabulateL2 (Thnk t)   = fmap (first $ fmap BaseThunk) (tabulateL1 t)
 
 Serial instances for tries
 -------------------------- 
@@ -137,7 +137,7 @@ prevent wasted depth. Most are standard ADT series instances.
 >   seriesL2 srs = pure Sum `applZC` seriesL2 srs `applZC` seriesL2 srs
 >
 > instance (SerialL2 j, SerialL2 k) => SerialL2 (j, k) where
->   seriesL2 srs = pure Prod `applZC` seriesL1 (seriesL1 srs)
+>   seriesL2 srs = pure Prod `applZC` seriesL2 (seriesL2 srs)
 
 The  `SerialL2 Nat` definition uses a special formulation of list
 series to ensure that the list length is always the maximum the depth
@@ -150,7 +150,7 @@ allows  and that all elements are of the same depth.
 >           onlyZero x = Series $ \d -> [ pure x | d == 0 ]
 >
 > instance Argument k => SerialL2 (BaseThunk k) where
->   seriesL2 srs = pure Thnk `applZC` seriesL2 srs
+>   seriesL2 srs = pure Thnk `applZC` seriesL1 srs
 
 Non-base types
 --------------
