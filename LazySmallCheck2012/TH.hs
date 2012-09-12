@@ -1,16 +1,17 @@
 {-# LANGUAGE TemplateHaskell, TypeFamilies #-}
-module Test.LazySmallCheck2012.TH (deriveSerial, deriveArgument, viewPretty) where
+module Test.LazySmallCheck2012.TH (deriveSerial, deriveArgument, viewPretty, viewRaw) where
 
 import Control.Applicative
 import Control.Monad
 import Data.Generics.Uniplate.Data
+import Data.List
 import Language.Haskell.TH
 
 import Test.LazySmallCheck2012.Core
 import Test.LazySmallCheck2012.FunctionalValues
 
 -- Type-level template holes
-data THole = One | Two
+data THole = THole
 
 -- Expression-level template holes
 thole = error "Haven't you replaced this yet?"
@@ -58,8 +59,7 @@ deriveArgument tname = do
   when (null tconstrs) $ fail "deriveSerial: Empty datatype."
   template <- [d| instance Argument THole where
                     type Base THole = THole
-                    toBase One = thole
-                    toBase Two = thole
+                    toBase _ = thole
                     fromBase _ = thole
               |]
   -- Change instance name
@@ -85,7 +85,7 @@ deriveArgument tname = do
   let toBaseE name = [| toBaseThunk $(varE name) |]
   let buildBaseE 0 vs = [| Left  $(foldr (proE . toBaseE) [| () |] vs) |]
       buildBaseE n vs = [| Right $(buildBaseE (n - 1) vs) |]
-  let instTo (FunD to _) | show to == "toBase" = funD to
+  let instTo (FunD to _) | "toBase" `isSuffixOf` show to = funD to
         [ do vs <- mapM (const $ newName "x") ts
              let lhs = ConP c $ map VarP vs
              clause [return lhs] (normalB (buildBaseE i vs)) []
@@ -96,7 +96,7 @@ deriveArgument tname = do
   let fromBaseE name = [| fromBaseThunk $(varE name) |]
   let buildBaseP 0 vs = conP 'Left [ foldr (proP . varP) wildP vs ]
       buildBaseP n vs = conP 'Right [ buildBaseP (n - 1) vs ]
-  let instFrom (FunD from _) | show from == "fromBase" = funD from
+  let instFrom (FunD from _) | "fromBase" `isSuffixOf` show from = funD from
         [ do vs <- mapM (const $ newName "x") ts
              let rhs = foldl1 appE (conE c : map fromBaseE vs)
              clause [buildBaseP i vs] (normalB rhs) []
@@ -108,6 +108,9 @@ deriveArgument tname = do
     transformBiM instTo >>=
     transformBiM instBase
 
+
+viewRaw :: (Name -> DecsQ) -> Name -> ExpQ
+viewRaw f = f >=> stringE . show
 
 viewPretty :: (Name -> DecsQ) -> Name -> ExpQ
 viewPretty f = f >=> stringE . pprint
