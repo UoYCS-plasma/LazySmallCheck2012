@@ -13,7 +13,7 @@ let command_lsc = unlines [ ":load Test.LazySmallCheck2012"
                           , "putStrLn \"\""]
 :}
 :{
-let command_suite = unlines [ ":load suite/Suite.hs"
+let command_suite = unlines [ ":load suite/Functionality.hs"
                             , "main"
                             , "putStr \"\\nPress <ENTER> to continue...\""
                             , "getLine"
@@ -23,6 +23,7 @@ let command_suite = unlines [ ":load suite/Suite.hs"
 let command_switch "--suite"  = return $ command_suite
     command_switch "--reset"  = return $ command_lsc
     command_switch "--readme" = return $ ":! less README.md"
+    command_switch _          = return $ "putStrLn \"Invalid command.\""
 :}
 
 
