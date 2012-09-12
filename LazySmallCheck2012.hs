@@ -4,7 +4,7 @@ module Test.LazySmallCheck2012(
   depthCheck, test, Testable(),
   -- ** Property language
   Property(), PropertyLike(),
-  tt, ff, inv, (*&&*), (*==>*), (==>),
+  tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
   forAll, exists, forAllDeeperBy, existsDeeperBy, 
   -- * Serial and Series definition
   Serial(series), Series(),

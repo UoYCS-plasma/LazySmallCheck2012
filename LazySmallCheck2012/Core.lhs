@@ -5,6 +5,7 @@
 > import Control.Arrow
 > import Control.DeepSeq
 > import Control.Exception
+> import Control.Monad
 > import Data.Data
 > import Data.Maybe
 > import Data.Monoid
@@ -13,7 +14,7 @@
 >
 > import Test.PartialValues
 
-> infixr 3 *&&*
+> infixr 3 *&&*, |&&|
 > infixl 1 *==>*, ==>
 
 Special Lazy SmallCheck exceptions
@@ -200,6 +201,7 @@ Properties
 ----------
 
 > data Property = Lift Bool | Not Property | And Property Property
+>               | PAnd    Property Property
 >               | Implies Property Property
 >               | ForAll (Depth -> Depth) (Series Property)
 >               | Exists (Depth -> Depth) (Series Property)
@@ -246,12 +248,21 @@ Smart constructors for `Property`s.
 > inv :: PropertyLike a => a -> Property
 > inv = Not . mkProperty
 >
+> -- | Boolean lazy implication.
+> (==>) :: Bool -> Bool -> Bool
+> False ==> _ = True
+> True  ==> x = x
+>
 > -- | 'Property' equivalent to '&&'.
 > (*&&*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
 > xs *&&* ys  = mkProperty xs `And` mkProperty ys
 > -- | 'Property' equivalent to implication, '==>'.
 > (*==>*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
 > xs *==>* ys = mkProperty xs `Implies` mkProperty ys
+>
+> -- | Parallel conjunction. If left is undefined, try right.
+> (|&&|) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
+> xs |&&| ys  = mkProperty xs `PAnd` mkProperty ys
 >
 > -- | Universal quantification. Space searched is bounded by the
 > -- global depth.
@@ -305,17 +316,21 @@ through the `runPartial` function.
 >     prop (Not      p)    = not   `fmap2` prop p
 >     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
 >     prop (Implies  p q)  = (==>) `fmap2` prop p `appl2` prop q
+>     prop (PAnd     p q)  = parcomm (&&) (prop p) (prop q)
 >     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
 >     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
 >     refineWith es (Sum m, Left (Expand (n', ps))) 
 >       | n == n' = first (mappend $ Sum m) (terms (es ps))
 >     refineWith es x = x
-
-> -- | Boolean lazy implication.
-> (==>) :: Bool -> Bool -> Bool
-> False ==> _ = True
-> True  ==> x = x
-
+>
+> -- | Parallel application of commutative binary Boolean functions.
+> parcomm :: (Bool -> Bool -> Bool) -> 
+>            Counter (Either LSC Bool) -> Counter (Either LSC Bool) ->
+>            Counter (Either LSC Bool)
+> parcomm f p q = query (force $ snd p) (force $ snd q)
+>   where force = join . fmap (peek . pure)
+>         query (Left _) (Right _) = f `fmap2` q `appl2` p
+>         query x        _         = f `fmap2` p `appl2` q
 
 > join2 :: Counter (Either a (Counter (Either a b))) -> Counter (Either a b)
 > join2 (m, Left x) = (m, Left x)
