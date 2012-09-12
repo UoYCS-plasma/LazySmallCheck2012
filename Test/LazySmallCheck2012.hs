@@ -10,7 +10,7 @@ module Test.LazySmallCheck2012(
   Serial(series), Series(),
   -- * Series construction
   module Control.Applicative, (\/), (><), applZC, 
-  deeperBy, zeroCost, drawnFrom,
+  deeperBy, zeroCost, drawnFrom, (<.>),
   -- ** cons\<N\> combinators,
   cons, cons0, cons1, cons2, cons3, cons4, cons5,
   -- * Argument construction,
@@ -47,3 +47,7 @@ test :: (Data a, Typeable a) => Testable a => a -> IO ()
 test p = sequence_ [ do putStrLn $ "LSC: Depth " ++ show d ++ ":"
                         depthCheck d p
                    | d <- [0..] ]
+
+-- | Simulates composition in SC & LSC2008.
+(<.>) :: Series a -> (Depth -> Depth) -> Series a
+(<.>) = flip deeperBy

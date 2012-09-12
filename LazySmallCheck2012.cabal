@@ -19,9 +19,10 @@ Maintainer:          jason at cs.york.ac.uk
 Category:            Testing
 Build-type:          Simple
 Extra-source-files:  README.md suite/Suite.hs .ghci
-Cabal-version:       >=1.6
+Cabal-version:       >=1.10
 
 Library
+  Default-Language:    Haskell2010
   Exposed-modules:     Test.LazySmallCheck2012, Test.PartialValues, 
                        Test.LazySmallCheck2012.Instances, 
                        Test.LazySmallCheck2012.Core, 
@@ -34,9 +35,18 @@ Library
                        uniplate >= 1.3 && < 2
 
 Test-Suite functionality 
+  Default-Language:    Haskell2010
   type:                exitcode-stdio-1.0
   main-is:             suite/Functionality.hs
   Build-depends:       base >=4 && < 5
+
+Benchmark performance
+  Default-Language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  main-is:             suite/Performance.hs
+  hs-source-dirs:      ., suite/performance
+  Build-depends:       base >=4 && < 5, criterion >= 0.6 && < 1,
+                       deepseq >= 1.2 && < 2, syb >= 0.2 && < 0.4
 
 Source-Repository head
   type:     git
