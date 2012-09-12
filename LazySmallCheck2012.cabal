@@ -37,6 +37,7 @@ Test-Suite suite
   type:                exitcode-stdio-1.0
   main-is:             suite/Suite.hs
   Build-depends:       base >=4 && < 5
+  ghc-options:         -ddump-splices
 
 Source-Repository head
   type:     git
