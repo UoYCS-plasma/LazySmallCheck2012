@@ -1,5 +1,5 @@
 {-# LANGUAGE ExistentialQuantification, DeriveDataTypeable,
-             DeriveFunctor, TypeFamilies #-}
+             DeriveFunctor, TypeFamilies, TemplateHaskell #-}
 {-# OPTIONS_GHC -ignore-dot-ghci #-}
 
 import Control.Exception
@@ -11,6 +11,7 @@ import System.Exit
 import Test.LazySmallCheck2012
 import Test.LazySmallCheck2012.Core
 import Test.LazySmallCheck2012.FunctionalValues
+import Test.LazySmallCheck2012.TH
 
 main = do mapM_ runTest suite
           putStrLn "\nSuite: Test suite complete."
@@ -116,6 +117,7 @@ data Peano = Zero | Succ Peano
 
 instance Serial Peano where
   series = cons0 Zero <|> cons1 Succ
+
 instance Argument Peano where
   type Base Peano = Either () (BaseThunk Peano)
   toBase Zero     = Left ()
@@ -136,7 +138,7 @@ test8 = Test "foldr1 is the same as foldl1"
 
 -- (f . g) . h == f . (g . h)
 
-test9 = Test "Associativity of assoc."
+test9 = Test "Associativity of compose."
         (\f g h x -> let typ_f = f :: Peano -> Peano
                          typ_g = g :: Peano -> Peano
                          typ_h = h :: Peano -> Peano
@@ -220,6 +222,9 @@ test11c = Test "ClockBind obeys Bind/Bind"
 
 data Foo a = Foo a a a deriving (Show, Data, Typeable, Eq)
 
+{-
+Now perfomed using deriveSerial and deriveArgument
+
 instance Serial a => Serial (Foo a) where
   series = cons3 Foo
 
@@ -227,6 +232,7 @@ instance Argument a => Argument (Foo a) where
   type Base (Foo a) = (BaseThunk a, (BaseThunk a, BaseThunk a))
   toBase (Foo x y z) = (toBaseThunk x, (toBaseThunk y, toBaseThunk z))
   fromBase (x, (y, z)) = Foo (fromBaseThunk x) (fromBaseThunk y) (fromBaseThunk z)
+-}
   
 coreturn (Foo x _ _) = x
 cobind f (Foo x y z) = Foo (f $ Foo x y z) (f $ Foo y x z) (f $ Foo z x y)
@@ -247,3 +253,5 @@ test12c = Test "Foo obeys Cobind/Cobind"
                       in (cobind f . cobind g) xs == cobind (f . cobind g) xs)
           False 5
 
+deriveSerial   ''Foo
+deriveArgument ''Foo

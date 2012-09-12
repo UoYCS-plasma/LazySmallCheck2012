@@ -7,9 +7,9 @@ let command_lsc = unlines [ ":load Test.LazySmallCheck2012"
                           , "putStrLn \" ##########################################\""
                           , "putStrLn \" #  LazySmallCheck 2012 GHCi Environment  #\""
                           , "putStrLn \" ##########################################\""
-                          , "putStrLn \" :suite   --- Run test suite.\""
-                          , "putStrLn \" :lsc2012 --- Reset environment.\""
-                          , "putStrLn \" :readme  --- View README.md.\""
+                          , "putStrLn \" :lsc --suite    === Run test suite.\""
+                          , "putStrLn \" :lsc --reset    === Reset environment.\""
+                          , "putStrLn \" :lsc --readme   === View README.md.\""
                           , "putStrLn \"\""]
 :}
 :{
@@ -17,11 +17,15 @@ let command_suite = unlines [ ":load suite/Suite.hs"
                             , "main"
                             , "putStr \"\\nPress <ENTER> to continue...\""
                             , "getLine"
-                            , ":lsc2012"]
+                            , ":lsc --reset"]
+:}
+:{
+let command_switch "--suite"  = return $ command_suite
+    command_switch "--reset"  = return $ command_lsc
+    command_switch "--readme" = return $ ":! less README.md"
 :}
 
-:def suite   const(return $ command_suite)
-:def lsc2012 const(return $ command_lsc)
-:def readme  const(return $ ":! less README.md")
 
-:lsc2012
+:def lsc command_switch
+
+:lsc --reset
