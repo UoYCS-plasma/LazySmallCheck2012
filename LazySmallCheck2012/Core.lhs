@@ -330,7 +330,7 @@ through the `runPartial` function.
 > parcomm f p q = query (force $ snd p) (force $ snd q)
 >   where force = join . fmap (peek . pure)
 >         query (Left _) (Right _) = f `fmap2` q `appl2` p
->         query x        _         = f `fmap2` p `appl2` q
+>         query _        _         = f `fmap2` p `appl2` q
 
 > join2 :: Counter (Either a (Counter (Either a b))) -> Counter (Either a b)
 > join2 (m, Left x) = (m, Left x)
