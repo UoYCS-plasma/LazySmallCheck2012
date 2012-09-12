@@ -29,8 +29,7 @@ Boolean value can be expressed as a `foldr`.
 
 ``` haskell
 prop_ReduceFold :: ([Bool] -> Bool) -> Property
-prop_ReduceFold r = existsDeeperBy (+2) $ \f z -> 
-                    forAll $ \xs -> r xs == foldr f z xs
+prop_ReduceFold r = existsDeeperBy (+2) $ \f z -> forAll $ \xs -> r xs == foldr f z xs
 ```
 
 When this property is tested using our advanced version of *Lazy

@@ -28,7 +28,7 @@ data Test = forall a. (Data a, Typeable a, Testable a) =>
 
 suite = [ test1, test2, test3, test4, test5, test6, test7, test8
         , test9, test10, test11a, test11b, test11c
-        , test12a, test12b, test12c ]
+        , test12a, test12b, test12c, test13, test14a, test14b ]
 
 ------------------------------------------------------------------------------------
 
@@ -43,19 +43,41 @@ isPrefix (x:xs) (y:ys) = x == y && isPrefix xs ys
 test1 = Test "isPrefix" (\xs ys -> isPrefix xs (xs ++ ys)) True 5
 test2 = Test "flip isPrefix" (\xs ys -> flip isPrefix xs (xs ++ ys)) False 5
 
--- Set insert
-type Set a = [a]
-
+-- Ordered List insert
 insert :: Char -> [Char] -> [Char]
 insert x []     = [x]
-insert x (y:ys) | x <= y    = x:y:ys
+insert x (y:ys) | x <= y    = x : y : ys
                 | otherwise = y : insert x ys
                               
 ordered :: Ord a => [a] -> Bool
 ordered (x:y:zs) = x <= y && ordered (y:zs)
 ordered _ = True
 
-test3 = Test "Set insert" (\c s -> ordered s ==> ordered (insert c s)) True 5
+test3 = Test "Ordered List insert" 
+        (\c s -> ordered s ==> ordered (insert c s)) True 5
+        
+-- Set insert
+
+allDiff []     = True
+allDiff (x:xs) = x `notElem` xs && allDiff xs
+
+isSet :: Ord a => Bool -> [a] -> Property
+isSet False xs = ordered xs *&&* allDiff xs
+isSet True  xs = ordered xs |&&| allDiff xs
+
+setinsert :: Char -> [Char] -> [Char]
+setinsert x []     = [x]
+setinsert x (y:ys) | x == y    = y : ys
+                   | x <= y    = x : y : ys
+                   | otherwise = y : setinsert x ys
+
+test14a = Test "Set insert -- sequential conjunction" 
+        (\c s -> isSet False s *==>* isSet False (setinsert c s))
+        True 5
+
+test14b = Test "Set insert -- parallel conjunction" 
+        (\c s -> isSet True s *==>* isSet True (setinsert c s))
+        True 5
 
 -- Associativity of Boolean
 test4 = Test "Associativity of binary Boolean functions"
@@ -144,6 +166,12 @@ test10 = Test "Any fmap over the heap maintains the invariant."
                   invariant (fmap (f :: Peano -> Peano) h))
          False 5
          
+-- Find a predicate on strings
+
+test13 = Test "Some large string"
+         (\p -> p "some long string" ==> p "some other string")
+         False 30
+
 -- Clock/Emit is a monad
 
 data ClockEmit a = Step (ClockEmit a) 
