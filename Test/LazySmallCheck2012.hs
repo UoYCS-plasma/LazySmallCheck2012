@@ -35,12 +35,12 @@ import Test.LazySmallCheck2012.FunctionalValues.Instances
 -- | Check a `Testable` `Property` to a specified depth.
 depthCheck :: (Data a, Typeable a) => Testable a => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
-  (Sum n, Nothing) -> putStrLn $ "LSC: Property holds after "
+  (C n Nothing)   -> putStrLn $ "LSC: Property holds after "
                               ++ show n ++ " tests."
-  (Sum n, Just cx) -> do putStrLn $ "LSC: Counterexample found after "
+  (C n (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
                                  ++ show n ++ " tests.\n"
-                         print cx
-                         exitFailure
+                        print cx
+                        exitFailure
 
 -- | Check a `Testable` `Property` for all depths. Runs forever.
 test :: (Data a, Typeable a) => Testable a => a -> IO ()

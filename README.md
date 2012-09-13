@@ -68,6 +68,7 @@ Usage
 
     $ git clone https://github.com/UoYCS-plasma/LazySmallCheck2012.git
     $ cd LazySmallCheck2012
+    $ cabal install --only-dependencies
     
 2) Enter the GHC interactive mode.
 

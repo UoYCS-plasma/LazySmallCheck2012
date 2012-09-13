@@ -73,8 +73,10 @@ pretty-printed representations of instantiated quantification
 variables. The `tExpand` component returns a list of Terms that are
 expansions at the path provided.
 
-> data Term a = Term { tValue  :: Location -> QuantCtx (Partial LSC a)
->                    , tExpand :: Path     -> [Term a] }
+> type DLocation = (Nesting, Path -> Path)
+>
+> data Term a = Term { tValue  :: DLocation -> QuantCtx (Partial LSC a)
+>                    , tExpand :: Path      -> [Term a] }
 >
 > instance Functor Term where
 >   fmap f (Term v es) = Term (fmap3 f v) (fmap3 f es)
@@ -82,8 +84,8 @@ expansions at the path provided.
 > instance Applicative Term where
 >   pure x = Term (pure3 x) (pure [])
 >   fs <*> xs = Term
->     (\(n, ps) -> (<*>) <$> tValue fs (n, ps ++ [False])
->                        <*> tValue xs (n, ps ++ [True]))
+>     (\(n, ps) -> (<*>) <$> tValue fs (n, ps . (False:))
+>                        <*> tValue xs (n, ps . (True:)))
 >     (\(p:ps)  -> if p then fmap (fs <*>) (tExpand xs ps)
 >                       else fmap (<*> xs) (tExpand fs ps))
 
@@ -113,7 +115,7 @@ introduced and preserved.
 > mergeTerms :: [Term a] -> Term a
 > mergeTerms []  = error "LSC: Cannot merge empty terms."
 > mergeTerms [x] = x
-> mergeTerms xs  = Term (QC [string "_"] . inject . Expand) (const xs)
+> mergeTerms xs  = Term (QC [string "_"] . inject . Expand . second ($ [])) (const xs)
 >
 > instance Alternative Series where
 >   empty = Series $ pure []
@@ -287,7 +289,17 @@ Refute
 
 The `Counter` comonad holds the number of tests performed.
 
-> type Counter a = (Sum Int, a)
+> data Counter a = C { ctrCount :: !Int, ctrValue :: a }
+> 
+> instance Functor Counter where
+>   fmap f (C c v) = C c (f v)
+>
+> instance Applicative Counter where
+>   pure = C 0
+>   C fc fv <*> C xc xv = C (fc + xc) (fv xv)
+>
+> instance NFData a => NFData (Counter a) where
+>   rnf (C c x) = rnf c `seq` rnf x 
 
 A function that searches for `counterexample`s assuming no higher
 level quantification.
@@ -304,13 +316,13 @@ through the `runPartial` function.
 >           Counter (Either LSC (Maybe QuantInfo))
 > refute n d xs = terms $ runSeries xs d
 >   where
->     terms = foldr reduce (Sum 0, Right Nothing) . map term
->     reduce (n, Right Nothing) (n', x) = (n `mappend` n', x)
->     reduce (n, x)             _       = (n, x)
+>     terms = foldr reduce (pure $ Right Nothing) . map term
+>     reduce (C n (Right Nothing)) y = C (n + ctrCount y) (ctrValue y)
+>     reduce x                     _ = x
 >     term :: Term Property -> Counter (Either LSC (Maybe QuantInfo))
 >     term (Term v es) = refineWith es $ fmap2 qcToMaybe $ join2 
->       (Sum 1, fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
->               fmap peek $ fmap2 prop $ v (n, []))
+>       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>              fmap peek $ fmap2 prop $ v (n, id))
 >     prop :: Property -> Counter (Either LSC Bool)
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
@@ -319,22 +331,22 @@ through the `runPartial` function.
 >     prop (PAnd     p q)  = parcomm (&&) (prop p) (prop q)
 >     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
 >     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
->     refineWith es (Sum m, Left (Expand (n', ps))) 
->       | n == n' = first (mappend $ Sum m) (terms (es ps))
+>     refineWith es (C m (Left (Expand (n', ps))) )
+>       | n == n' = C m id <*> terms (es ps)
 >     refineWith es x = x
 >
 > -- | Parallel application of commutative binary Boolean functions.
 > parcomm :: (Bool -> Bool -> Bool) -> 
 >            Counter (Either LSC Bool) -> Counter (Either LSC Bool) ->
 >            Counter (Either LSC Bool)
-> parcomm f p q = query (force $ snd p) (force $ snd q)
+> parcomm f p q = query (force $ ctrValue p) (force $ ctrValue q)
 >   where force = join . fmap (peek . pure)
 >         query (Left _) (Right _) = f `fmap2` q `appl2` p
 >         query _        _         = f `fmap2` p `appl2` q
 
 > join2 :: Counter (Either a (Counter (Either a b))) -> Counter (Either a b)
-> join2 (m, Left x) = (m, Left x)
-> join2 (m, Right (n, x)) = (m `mappend` n, x)
+> join2 (C m (Left x))        = C m (Left x)
+> join2 (C m (Right (C n x))) = C (m + n) x
 
 > instance NFData LSC where
 >   rnf (Expand x) = rnf x
