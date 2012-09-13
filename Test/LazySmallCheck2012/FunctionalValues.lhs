@@ -212,9 +212,9 @@ converted into a Haskell function.
 >                            `applZC` 
 >                   Series (fmap2 storeShow $ runSeries $ seriesL1 seriesWithCtx)
 >     where
->       storeShow (Total v) = Total
+>       storeShow (TTerm v) = TTerm
 >         ((\(QC ctx t) -> QC [combine ctx $ pure t] t) v)
->       storeShow (Partial v es) = Partial
+>       storeShow (PTerm v es) = PTerm
 >         ((fmap $ \(QC ctx t) -> QC [combine ctx t] t) v)
 >         ((fmap . fmap) storeShow es)
 >       combine ctx t = Braces $ LAlign $
