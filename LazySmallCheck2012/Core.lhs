@@ -303,7 +303,7 @@ Refute
 
 The `Counter` comonad holds the number of tests performed.
 
-> data Counter a = C { ctrCount :: !Int, ctrValue :: a }
+> data Counter a = C { ctrCount :: !Integer, ctrValue :: a }
 > 
 > instance Functor Counter where
 >   fmap f (C c v) = C c (f v)
