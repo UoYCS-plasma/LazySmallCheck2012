@@ -6,6 +6,7 @@
 > import Control.DeepSeq
 > import Control.Exception
 > import Control.Monad
+> import Control.Parallel.Strategies
 > import Data.Data
 > import Data.Maybe
 > import Data.Monoid
@@ -49,6 +50,11 @@ instantiated quantification variable values.
 > data AlignedString = LAlign [AlignedString]
 >                    | Append String AlignedString
 >                    | Braces AlignedString
+>
+> instance NFData AlignedString where
+>   rnf (LAlign xs)    = rnf xs
+>   rnf (Append str x) = rnf str `seq` rnf x
+>   rnf (Braces x)     = rnf x
 >
 > string = (`Append` LAlign [])
 >
@@ -330,7 +336,7 @@ through the `runPartial` function.
 >           Counter (Either LSC (Maybe QuantInfo))
 > refute n d xs = terms $ runSeries xs d
 >   where
->     terms = foldr reduce (pure $ Right Nothing) . map term
+>     terms = foldr reduce (pure $ Right Nothing) . parMap rdeepseq term
 >     reduce (C n (Right Nothing)) y = C (n + ctrCount y) (ctrValue y)
 >     reduce x                     _ = x
 >     term :: Term Property -> Counter (Either LSC (Maybe QuantInfo))
