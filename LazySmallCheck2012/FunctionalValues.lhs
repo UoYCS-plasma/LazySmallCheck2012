@@ -9,6 +9,7 @@
 > import Data.Generics.Instances
 > import Data.Maybe
 > import Data.Typeable
+> import Text.Show.Functions
 >
 > import Test.LazySmallCheck2012.Core
 > import Test.LazySmallCheck2012.Instances (Nat(..))
@@ -211,7 +212,9 @@ converted into a Haskell function.
 >                            `applZC` 
 >                   Series (fmap2 storeShow $ runSeries $ seriesL1 seriesWithCtx)
 >     where
->       storeShow (Term v es) = Term
+>       storeShow (Total v) = Total
+>         ((\(QC ctx t) -> QC [combine ctx $ pure t] t) v)
+>       storeShow (Partial v es) = Partial
 >         ((fmap $ \(QC ctx t) -> QC [combine ctx t] t) v)
 >         ((fmap . fmap) storeShow es)
 >       combine ctx t = Braces $ LAlign $
