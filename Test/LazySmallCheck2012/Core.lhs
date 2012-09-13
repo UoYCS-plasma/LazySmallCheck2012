@@ -75,27 +75,27 @@ expansions at the path provided.
 
 > type DLocation = (Nesting, Path -> Path)
 >
-> data Term a = Partial { ptValue  :: DLocation -> QuantCtx (Partial LSC a)
->                       , ptExpand :: Path      -> [Term a] }
->             | Total   { ttValue :: QuantCtx a }
+> data Term a = PTerm { ptValue  :: DLocation -> QuantCtx (Partial LSC a)
+>                     , ptExpand :: Path      -> [Term a] }
+>             | TTerm   { ttValue :: QuantCtx a }
 >
 > tValue :: Term a -> DLocation -> QuantCtx (Partial LSC a)
-> tValue (Total   v)   = pure $ fmap pure v
-> tValue (Partial v _) = v
+> tValue (TTerm v)   = pure $ fmap pure v
+> tValue (PTerm v _) = v
 >
 > tExpand :: Term a -> Path -> [Term a]
-> tExpand (Total  _)     = pure []
-> tExpand (Partial _ es) = es
+> tExpand (TTerm _)    = pure []
+> tExpand (PTerm _ es) = es
 >
 > instance Functor Term where
->   fmap f (Total v)      = Total (fmap f v)
->   fmap f (Partial v es) = Partial (fmap3 f v) (fmap3 f es)
+>   fmap f (TTerm v)    = TTerm (fmap f v)
+>   fmap f (PTerm v es) = PTerm (fmap3 f v) (fmap3 f es)
 >
 > instance Applicative Term where
->   -- pure x = Partial (pure3 x) (pure [])
->   pure = Total . pure
->   Total f <*> Total x = Total (f <*> x)
->   fs      <*> xs      = Partial
+>   -- pure x = PTerm (pure3 x) (pure [])
+>   pure = TTerm . pure
+>   TTerm f <*> TTerm x = TTerm (f <*> x)
+>   fs      <*> xs      = PTerm
 >     (\(n, ps) -> (<*>) <$> tValue fs (n, ps . (False:))
 >                        <*> tValue xs (n, ps . (True:)))
 >     (\(p:ps)  -> if p then fmap (fs <*>) (tExpand xs ps)
@@ -127,7 +127,7 @@ introduced and preserved.
 > mergeTerms :: [Term a] -> Term a
 > mergeTerms []  = error "LSC: Cannot merge empty terms."
 > mergeTerms [x] = x
-> mergeTerms xs  = Partial (QC [string "_"] . inject . Expand . second ($ [])) (const xs)
+> mergeTerms xs  = PTerm (QC [string "_"] . inject . Expand . second ($ [])) (const xs)
 >
 > instance Alternative Series where
 >   empty = Series $ pure []
@@ -152,9 +152,9 @@ automatically for types satisfying the Serial type-class.
 >   -- value in the quantification context.
 >   seriesWithCtx :: Series a
 >   seriesWithCtx = Series $ (fmap . fmap) storeShow $ runSeries series
->     where storeShow (Total v) = Total
+>     where storeShow (TTerm v) = TTerm
 >             ((\(QC _ x) -> QC [string $ show x] x) v)
->           storeShow (Partial v es) = Partial 
+>           storeShow (PTerm v es) = PTerm 
 >             ((fmap $ \(QC _ x) -> QC [string $ show x] x) v)
 >             ((fmap . fmap) storeShow es)
 
@@ -334,9 +334,9 @@ through the `runPartial` function.
 >     reduce (C n (Right Nothing)) y = C (n + ctrCount y) (ctrValue y)
 >     reduce x                     _ = x
 >     term :: Term Property -> Counter (Either LSC (Maybe QuantInfo))
->     term (Total v) = join2 $ C 1 $ Right $ fmap2 qcToMaybe 
+>     term (TTerm v) = join2 $ C 1 $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
->     term (Partial v es) = refineWith es $ fmap2 qcToMaybe $ join2 
+>     term (PTerm v es) = refineWith es $ fmap2 qcToMaybe $ join2 
 >       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
 >              fmap peek $ fmap2 prop $ v (n, id))
 >     prop :: Property -> Counter (Either LSC Bool)
