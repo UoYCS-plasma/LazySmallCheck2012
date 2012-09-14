@@ -18,7 +18,7 @@ Author:              Jason S. Reich
 Maintainer:          jason at cs.york.ac.uk
 Category:            Testing
 Build-type:          Simple
-Extra-source-files:  README.md suite/Suite.hs .ghci
+Extra-source-files:  README.md .ghci suite/performance.sh
 Cabal-version:       >=1.10
 
 Library
@@ -50,6 +50,22 @@ Benchmark performance
   hs-source-dirs:      ., suite/performance
   Build-depends:       base >=4 && < 5, criterion >= 0.6 && < 1,
                        deepseq >= 1.2 && < 2, syb >= 0.2 && < 0.4
+  Other-Modules:       LazySmallCheck 
+                       Benchmarks.Catch, LSC2008.TestCircuits3, LSC2012.TestCircuits2, 
+                       Benchmarks.Countdown, LSC2008.TestCountdown1, LSC2012.TestCircuits3, 
+                       Benchmarks.Huffman, LSC2008.TestCountdown2, LSC2012.TestCountdown1, 
+                       Benchmarks.ListSet, LSC2008.TestHuffman1, LSC2012.TestCountdown2, 
+                       Benchmarks.Mate, LSC2008.TestHuffman2, LSC2012.TestHuffman1, 
+                       Benchmarks.Mux, LSC2008.TestListSet1, LSC2012.TestHuffman2, 
+                       Benchmarks.RedBlack, LSC2008.TestMate, LSC2012.TestListSet1, 
+                       Benchmarks.RegExp, LSC2008.TestMux2, LSC2012.TestMate, 
+                       Benchmarks.Sad, LSC2008.TestRedBlack, LSC2012.TestMux2, 
+                       Benchmarks.SumPuz, LSC2008.TestRegExp, LSC2012.TestRedBlack, 
+                       Benchmarks.Turner, LSC2008.TestSumPuz, LSC2012.TestRegExp, 
+                       LSC2008.TestCatch, LSC2008.TestTurner, LSC2012.TestSumPuz, 
+                       LSC2008.TestCircuits1, LSC2012.TestCatch, LSC2012.TestTurner, 
+                       LSC2008.TestCircuits2, LSC2012.TestCircuits1
+
 
 Source-Repository head
   type:     git
