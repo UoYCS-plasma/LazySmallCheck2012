@@ -1,10 +1,11 @@
-[ $# -ne 1 ] && echo "performance.sh: Expecting one argument representing core." && exit
+[ $# -ne 2 ] && echo "performance.sh: Expecting two arguments representing core.and identifier." && exit
 [ ! -f "suite/Performance.hs" ] && echo "performance.sh: Wrong directory!" && exit
 
 mkdir -p suite/performance/Results
 
-echo "Enter a description of this test set: "
-read DESC
+# echo "Enter a description of this test set: "
+# read DESC
+DESC=$2
 NAME=`date +%y%m%d-%H%M`
 
 cabal configure --enable-benchmarks
