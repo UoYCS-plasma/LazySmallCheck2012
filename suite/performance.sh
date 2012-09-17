@@ -8,13 +8,16 @@ mkdir -p suite/performance/Results
 DESC=$2
 NAME=`date +%y%m%d-%H%M`
 
+echo "performance.sh: Configuring..."
 cabal configure --enable-benchmarks
+echo "performance.sh: Building..."
 cabal build
 
 echo $NAME $HOSTNAME $DESC >> "suite/performance/Results/descs.txt"
 DIR="suite/performance/Results/$NAME"
 mkdir $DIR
 
+echo "performance.sh: Running..."
 for i in `seq 1 $1`
 do
    echo
