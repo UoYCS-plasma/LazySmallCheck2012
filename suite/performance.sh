@@ -7,13 +7,14 @@ mkdir -p suite/performance/Results
 # read DESC
 DESC=$2
 NAME=`date +%y%m%d-%H%M`
+HASH=`git log --pretty=format:'%h' -n 1`
 
 echo "performance.sh: Configuring..."
 cabal configure --enable-benchmarks
 echo "performance.sh: Building..."
 cabal build
 
-echo $NAME $HOSTNAME $DESC >> "suite/performance/Results/descs.txt"
+echo $NAME $HOSTNAME $HASH $DESC >> "suite/performance/Results/descs.txt"
 DIR="suite/performance/Results/$NAME"
 mkdir $DIR
 
