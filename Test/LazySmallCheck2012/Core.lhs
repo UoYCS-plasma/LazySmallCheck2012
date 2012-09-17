@@ -336,7 +336,7 @@ through the `runPartial` function.
 >           Counter (Either LSC (Maybe QuantInfo))
 > refute n d xs = terms $ runSeries xs d
 >   where
->     terms = foldr reduce (pure $ Right Nothing) . parMap rdeepseq term
+>     terms = foldr reduce (pure $ Right Nothing) . parMap seqResult term
 >     reduce (C n (Right Nothing)) y = C (n + ctrCount y) (ctrValue y)
 >     reduce x                     _ = x
 >     term :: Term Property -> Counter (Either LSC (Maybe QuantInfo))
@@ -382,6 +382,10 @@ through the `runPartial` function.
 > qcToMaybe :: QuantCtx Bool -> Maybe QuantInfo
 > qcToMaybe (QC ctx False) = Just ctx
 > qcToMaybe (QC ctx True)  = Nothing
+
+> seqResult :: Strategy (Counter (Either a (Maybe b)))
+> seqResult x@(C _ (Right Nothing)) = return x
+> seqResult x = return x
 
 Composing functors
 ------------------
