@@ -93,12 +93,12 @@ isPrefix_bad (x:xs) (y:ys) = x == y || isPrefix_bad xs ys
 
 test5 = Test "isPrefix_bad with existential" 
         (\xs ys -> isPrefix_bad xs ys *==>* 
-                   existsDeeperBy (+2) (\xs' -> (xs ++ xs') == ys))
+                   exists (\xs' -> (xs ++ xs') == ys))
         False 5
         
 test6 = Test "isPrefix_bad with existential" 
         (\xs ys -> isPrefix xs ys *==>* 
-                   existsDeeperBy (+2) (\xs' -> (xs ++ xs') == ys))
+                   exists (\xs' -> (xs ++ xs') == ys))
         True 4
                 
 ------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ test6 = Test "isPrefix_bad with existential"
 -- Reductions to folds
 test7 = Test "All reductions are folds"
         (\r -> let typ = r :: [Bool] -> Bool
-               in existsDeeperBy (+2) $ 
+               in exists $ 
                   \f z -> forAll $ \xs -> r xs == foldr f z xs)
         False 5
 
