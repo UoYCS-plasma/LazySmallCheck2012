@@ -287,7 +287,7 @@ Smart constructors for `Property`s.
 > -- | Existential quantification. Space searched is bounded by the
 > -- global depth.
 > exists :: Testable a => a -> Property
-> exists = Exists id . mkTest . pure
+> exists = Exists succ . mkTest . pure
 >
 > -- | Universal quantification. Space searched is 
 > -- global depth changed by some depth function.
