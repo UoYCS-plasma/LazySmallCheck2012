@@ -48,7 +48,7 @@ instantiated quantification variable values.
 
 > data AlignedString = LAlign [AlignedString]
 >                    | Append String AlignedString
->                    | Braces AlignedString
+>                    | Braces [AlignedString]
 >
 > string = (`Append` LAlign [])
 >
@@ -56,7 +56,9 @@ instantiated quantification variable values.
 > showDoc n (LAlign (x:xs))
 >   = init (unlines (showDoc n x : map ((replicate n ' ' ++) . showDoc 0) xs))
 > showDoc n (Append str astr) = str ++ showDoc (n + length str) astr
-> showDoc n (Braces astr) = "{ " ++ showDoc (n + 2) astr ++ " }"
+> showDoc n (Braces []) = "{ }"
+> showDoc n (Braces (x:xs)) 
+>   = "{ " ++ init (unlines (showDoc (n + 2) x : map (((replicate n ' ' ++ "; ") ++) . showDoc 0) xs)) ++ " }"
 >
 > instance Show AlignedString where
 >   show     = showDoc 0

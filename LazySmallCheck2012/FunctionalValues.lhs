@@ -217,7 +217,7 @@ converted into a Haskell function.
 >       storeShow (PTerm v es) = PTerm
 >         ((fmap $ \(QC ctx t) -> QC [combine ctx t] t) v)
 >         ((fmap . fmap) storeShow es)
->       combine ctx t = Braces $ LAlign $
+>       combine ctx t = Braces $
 >                       [ (show ((fromBase <$> k) :: Partial LSC a)
 >                             ++  " -> ") `Append` v
 >                       | (Just (k, _), v) <- trieToList t `zip` ctx
