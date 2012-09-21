@@ -78,20 +78,25 @@ expansions at the path provided.
 > type DLocation = (Nesting, Path -> Path)
 >
 > data Term a = PTerm { ptValue  :: DLocation -> QuantCtx (Partial LSC a)
->                     , ptExpand :: Path      -> [Term a] }
+>                     , ptExpand :: Path      -> [Term a]
+>                     , ptSize   :: !Integer }
 >             | TTerm   { ttValue :: QuantCtx a }
 >
 > tValue :: Term a -> DLocation -> QuantCtx (Partial LSC a)
 > tValue (TTerm v)   = pure $ fmap pure v
-> tValue (PTerm v _) = v
+> tValue (PTerm v _ _) = v
 >
 > tExpand :: Term a -> Path -> [Term a]
 > tExpand (TTerm _)    = pure []
-> tExpand (PTerm _ es) = es
+> tExpand (PTerm _ es _) = es
+>
+> tSize :: Term a -> Integer
+> tSize (TTerm _)     = 1
+> tSize (PTerm _ _ n) = n
 >
 > instance Functor Term where
->   fmap f (TTerm v)    = TTerm (fmap f v)
->   fmap f (PTerm v es) = PTerm (fmap3 f v) (fmap3 f es)
+>   fmap f (TTerm v)      = TTerm (fmap f v)
+>   fmap f (PTerm v es n) = PTerm (fmap3 f v) (fmap3 f es) n
 >
 > instance Applicative Term where
 >   pure = TTerm . pure
@@ -101,6 +106,7 @@ expansions at the path provided.
 >                        <*> tValue xs (n, ps . (True:)))
 >     (\(p:ps)  -> if p then fmap (fs <*>) (tExpand xs ps)
 >                       else fmap (<*> xs) (tExpand fs ps))
+>     (tSize fs * tSize xs)
 
 
 Series and Serial generators
@@ -128,7 +134,7 @@ introduced and preserved.
 > mergeTerms :: [Term a] -> Term a
 > mergeTerms []  = error "LSC: Cannot merge empty terms."
 > mergeTerms [x] = x
-> mergeTerms xs  = PTerm (QC [string "_"] . inject . Expand . second ($ [])) (const xs)
+> mergeTerms xs  = PTerm (QC [string "_"] . inject . Expand . second ($ [])) (const xs) (sum $ map tSize xs)
 >
 > instance Alternative Series where
 >   empty = Series $ pure []
@@ -155,9 +161,9 @@ automatically for types satisfying the Serial type-class.
 >   seriesWithCtx = Series $ (fmap . fmap) storeShow $ runSeries series
 >     where storeShow (TTerm v) = TTerm
 >             ((\(QC _ x) -> QC [string $ show x] x) v)
->           storeShow (PTerm v es) = PTerm 
+>           storeShow (PTerm v es n) = PTerm 
 >             ((fmap $ \(QC _ x) -> QC [string $ show x] x) v)
->             ((fmap . fmap) storeShow es)
+>             ((fmap . fmap) storeShow es) n
 
 The `storeShow` value uses the Partial instance of `Show` to store a
 pretty-printed representation of each `Term`'s value in its
@@ -304,17 +310,17 @@ Refute
 
 The `Counter` comonad holds the number of tests performed.
 
-> data Counter a = C { ctrCount :: !Integer, ctrValue :: a }
+> data Counter a = C { ctrTests :: !Integer, ctrPrunes :: !Integer, ctrValue :: a }
 > 
 > instance Functor Counter where
->   fmap f (C c v) = C c (f v)
+>   fmap f (C ct cp v) = C ct cp (f v)
 >
 > instance Applicative Counter where
->   pure = C 0
->   C fc fv <*> C xc xv = C (fc + xc) (fv xv)
+>   pure = C 0 0
+>   C fct fcp fv <*> C xct xcp xv = C (fct + xct) (fcp + xcp) (fv xv)
 >
 > instance NFData a => NFData (Counter a) where
->   rnf (C c x) = rnf c `seq` rnf x 
+>   rnf (C ct cp x) = rnf ct `seq` rnf cp `seq` rnf x 
 
 A function that searches for `counterexample`s assuming no higher
 level quantification.
@@ -332,14 +338,14 @@ through the `runPartial` function.
 > refute n d xs = terms $ runSeries xs d
 >   where
 >     terms = foldr reduce (pure $ Right Nothing) . map term
->     reduce (C n (Right Nothing)) y = C (n + ctrCount y) (ctrValue y)
->     reduce x                     _ = x
+>     reduce (C m n (Right Nothing)) y = C (m + ctrTests y) (n + ctrPrunes y) (ctrValue y)
+>     reduce x                       _ = x
 >     term :: Term Property -> Counter (Either LSC (Maybe QuantInfo))
->     term (TTerm v) = join2 $ C 1 $ Right $ fmap2 qcToMaybe 
+>     term (TTerm v) = join2 $ C 1 0 $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
->     term (PTerm v es) = refineWith es $ fmap2 qcToMaybe $ join2 
->       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
->              fmap peek $ fmap2 prop $ v (n, id))
+>     term (PTerm v es pr) = refineWith pr es $ fmap2 qcToMaybe $ join2 
+>       (C 1 0 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>                fmap peek $ fmap2 prop $ v (n, id))
 >     prop :: Property -> Counter (Either LSC Bool)
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
@@ -348,9 +354,10 @@ through the `runPartial` function.
 >     prop (PAnd     p q)  = parcomm (&&) (prop p) (prop q)
 >     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
 >     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
->     refineWith es (C m (Left (Expand (n', ps))) )
->       | n == n' = C m id <*> terms (es ps)
->     refineWith es x = x
+>     refineWith _  es (C ct cp (Left (Expand (n', ps))) )
+>       | n == n' = C ct cp id <*> terms (es ps)
+>     refineWith pr es (C ct cp (Right Nothing)) = C ct (cp + pr) (Right Nothing)
+>     refineWith _  es x = x
 >
 > -- | Parallel application of commutative binary Boolean functions.
 > parcomm :: (Bool -> Bool -> Bool) -> 
@@ -362,14 +369,11 @@ through the `runPartial` function.
 >         query _        _         = f `fmap2` p `appl2` q
 
 > join2 :: Counter (Either a (Counter (Either a b))) -> Counter (Either a b)
-> join2 (C m (Left x))        = C m (Left x)
-> join2 (C m (Right (C n x))) = C (m + n) x
+> join2 (C m n (Left x))            = C m n (Left x)
+> join2 (C m n (Right (C m' n' x))) = C (m + m') (n + n') x
 
 > instance NFData LSC where
 >   rnf (Expand x) = rnf x
-
-> instance NFData a => NFData (Sum a) where
->   rnf (Sum x) = rnf x
 
 > sinkQC :: Functor f => QuantCtx (f a) -> f (QuantCtx a)
 > sinkQC (QC ctx val) = fmap (QC ctx) val

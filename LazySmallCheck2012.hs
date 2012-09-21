@@ -1,13 +1,13 @@
 {-# LANGUAGE ParallelListComp #-}
 module Test.LazySmallCheck2012( 
   -- * Depth-bounded, demand-driven property testing
-  depthCheck, test, Testable(),
+  depthCheck, depthCheck_MR, DepthCheck(..), test, Testable(),
   -- ** Property language
   Property(), PropertyLike(),
   tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
   forAll, exists, forAllDeeperBy, existsDeeperBy, 
   -- * Serial and Series definition
-  Serial(series), Series(),
+  Serial(series), Series(), seriesSize,
   -- * Series construction
   module Control.Applicative, (\/), (><), applZC, 
   deeperBy, zeroCost, drawnFrom, (<.>),
@@ -33,14 +33,27 @@ import Test.LazySmallCheck2012.Instances
 import Test.LazySmallCheck2012.FunctionalValues.Instances
 
 -- | Check a `Testable` `Property` to a specified depth.
-depthCheck :: (Data a, Typeable a) => Testable a => Depth -> a -> IO ()
+depthCheck :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
-  (C n Nothing)   -> putStrLn $ "LSC: Property holds after "
-                              ++ show n ++ " tests."
-  (C n (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
-                                 ++ show n ++ " tests.\n"
-                        print cx
-                        exitFailure
+  (C ct cp Nothing)   -> putStrLn $ "LSC: Property holds after "
+                                 ++ show ct ++ " tests with "
+                                 ++ show cp ++ " values pruned."
+  (C ct cp (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
+                                    ++ show ct ++ " tests with "
+                                    ++ show cp ++ " values pruned."
+                            print cx
+                            exitFailure
+
+-- | Machine readable output
+data DepthCheck = DepthCheck { dcCounterexample :: Maybe String, dcTests :: Integer, dcPruned :: Integer }
+  deriving Show
+                          
+depthCheck_MR :: (Data a, Typeable a, Testable a) => Depth -> a -> DepthCheck
+depthCheck_MR d p = let C ct cp cx = counterexample d (mkTestWithCtx $ pure p)
+                    in DepthCheck (fmap show cx) ct cp
+                       
+seriesSize :: Depth -> Series a -> Integer
+seriesSize d = tSize . mergeTerms . ($ d) . runSeries
 
 -- | Check a `Testable` `Property` for all depths. Runs forever.
 test :: (Data a, Typeable a) => Testable a => a -> IO ()

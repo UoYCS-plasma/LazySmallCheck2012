@@ -214,9 +214,9 @@ converted into a Haskell function.
 >     where
 >       storeShow (TTerm v) = TTerm
 >         ((\(QC ctx t) -> QC [combine ctx $ pure t] t) v)
->       storeShow (PTerm v es) = PTerm
+>       storeShow (PTerm v es n) = PTerm
 >         ((fmap $ \(QC ctx t) -> QC [combine ctx t] t) v)
->         ((fmap . fmap) storeShow es)
+>         ((fmap . fmap) storeShow es) n
 >       combine ctx t = Braces $
 >                       [ (show ((fromBase <$> k) :: Partial LSC a)
 >                             ++  " -> ") `Append` v
