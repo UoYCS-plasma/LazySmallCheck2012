@@ -52,7 +52,7 @@ key are handled;
 *   `Natu` -- Keys that are natural numbers. The trie consists of a
     list of values representing each number and a default value for
     those that are out of the range of the list.
-*   `Thnk` -- Keys that are wrapped up in a type-level thunk. This
+*   `Cast` -- Keys that are wrapped up in a type-level thunk. This
     will be explained in further detail, later.
 
 > data Level2 k v where
@@ -60,7 +60,7 @@ key are handled;
 >   Sum  :: Level2 j v -> Level2 k v -> Level2 (Either j k) v
 >   Prod :: Level2 j (Level2 k v) -> Level2 (j, k) v
 >   Natu :: [v] -> v -> Level2 Nat v
->   Thnk :: Level1 (Base k) v -> Level2 (BaseThunk k) v
+>   Cast :: Argument k => Level1 (Base k) v -> Level2 (BaseCast k) v
 
 The `applyT` function is a trie equivalent of the explicit application
 function `($)`. It is used to lookup a key and return a value.
@@ -78,7 +78,7 @@ function `($)`. It is used to lookup a key and return a value.
 > applyL2 (Sum  _ t) (Right k)     = t `applyL2` k
 > applyL2 (Prod t)   (j, k)        = t `applyL2` j `applyL2` k
 > applyL2 (Natu m d) (Nat k)       = foldr const d $ drop k m
-> applyL2 (Thnk t)   (BaseThunk k) = t `applyL1` k
+> applyL2 (Cast t)   (BaseCast k) = t `applyL1` k
 
 The `tabulateT` function converts a trie into an
 pseudo-association-list. Binary trees are used instead of an list to
@@ -105,7 +105,7 @@ prevent the extraction of defined others.
 > tabulateL2 (Natu m d) = foldr Branch (Leaf (wild, d)) 
 >                         [ Leaf (pure (Nat k), v) 
 >                         | (k, v) <- zip [0..] m ]
-> tabulateL2 (Thnk t)   = fmap (first $ fmap BaseThunk) (tabulateL1 t)
+> tabulateL2 (Cast t)   = fmap (first $ fmap BaseCast) (tabulateL1 t)
 
 Serial instances for tries
 -------------------------- 
@@ -150,8 +150,8 @@ allows  and that all elements are of the same depth.
 >                        ((:) <$> deeperBy (+ o) srs <*> fullSize (o + 1))
 >           onlyZero x = Series $ \d -> [ pure x | d == 0 ]
 >
-> instance Argument k => SerialL2 (BaseThunk k) where
->   seriesL2 srs = pure Thnk `applZC` seriesL1 srs
+> instance Argument k => SerialL2 (BaseCast k) where
+>   seriesL2 srs = pure Cast `applZC` seriesL1 srs
 
 Non-base types
 --------------
@@ -165,18 +165,18 @@ type-class provides a method of presenting an isomorphism to these
 >   toBase   :: k -> Base k
 >   fromBase :: Base k -> k
 
-The `BaseThunk` wrapped is a type-level promise that a type can be
+The `BaseCast` wrapped is a type-level promise that a type can be
 translated into a `Base` type. It is useful for describing recursive
 definitions without provoking the infinite type error.
 
-> data BaseThunk a = BaseThunk { forceBase :: Base a }
+> data BaseCast a = BaseCast { forceBase :: Base a }
 
 Standard combinators are supplied for constructing these isomorphisms.
 
-> toBaseThunk :: Argument k => k -> BaseThunk k
-> toBaseThunk = BaseThunk . toBase
-> fromBaseThunk :: Argument k => BaseThunk k -> k
-> fromBaseThunk = fromBase  . forceBase
+> toBaseCast :: Argument k => k -> BaseCast k
+> toBaseCast = BaseCast . toBase
+> fromBaseCast :: Argument k => BaseCast k -> k
+> fromBaseCast = fromBase  . forceBase
 
 The `isoIntNat` combinator provites a translation from integer-like
 types to `Nat`urals.

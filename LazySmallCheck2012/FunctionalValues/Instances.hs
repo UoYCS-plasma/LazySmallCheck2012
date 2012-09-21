@@ -14,35 +14,35 @@ instance Argument () where
   fromBase = id
 
 instance (Argument a, Argument b) => Argument (a, b) where
-  type Base (a, b) = (BaseThunk a, BaseThunk b)
-  toBase (i, j)   = (toBaseThunk i, toBaseThunk j)
-  fromBase (i, j) = (fromBaseThunk i, fromBaseThunk j)
+  type Base (a, b) = (BaseCast a, BaseCast b)
+  toBase (i, j)   = (toBaseCast i, toBaseCast j)
+  fromBase (i, j) = (fromBaseCast i, fromBaseCast j)
   
 instance (Argument a, Argument b, Argument c) => Argument (a, b, c) where
-  type Base (a, b, c) = (BaseThunk a, (BaseThunk b, BaseThunk c))
-  toBase (i, j, k)   = (toBaseThunk i, (toBaseThunk j, toBaseThunk k))
-  fromBase (i, (j, k)) = (fromBaseThunk i, fromBaseThunk j, fromBaseThunk k)
+  type Base (a, b, c) = (BaseCast a, (BaseCast b, BaseCast c))
+  toBase (i, j, k)   = (toBaseCast i, (toBaseCast j, toBaseCast k))
+  fromBase (i, (j, k)) = (fromBaseCast i, fromBaseCast j, fromBaseCast k)
                 
 instance (Argument a, Argument b, Argument c, Argument d) 
          => Argument (a, b, c, d) where
-  type Base (a, b, c, d) = (BaseThunk a, (BaseThunk b, (BaseThunk c, BaseThunk d)))
-  toBase (i, j, k, l)   = (toBaseThunk i, (toBaseThunk j, (toBaseThunk k, toBaseThunk l)))
-  fromBase (i, (j, (k, l))) = (fromBaseThunk i, fromBaseThunk j, fromBaseThunk k, fromBaseThunk l)
+  type Base (a, b, c, d) = (BaseCast a, (BaseCast b, (BaseCast c, BaseCast d)))
+  toBase (i, j, k, l)   = (toBaseCast i, (toBaseCast j, (toBaseCast k, toBaseCast l)))
+  fromBase (i, (j, (k, l))) = (fromBaseCast i, fromBaseCast j, fromBaseCast k, fromBaseCast l)
   
 
 
 instance (Argument a, Argument b, Argument c, Argument d, Argument e)
          => Argument (a, b, c, d, e) where
-  type Base (a, b, c, d, e) = (BaseThunk a, (BaseThunk b, (BaseThunk c, (BaseThunk d, BaseThunk e))))
-  toBase (i, j, k, l, m)   = (toBaseThunk i, (toBaseThunk j, (toBaseThunk k, (toBaseThunk l, toBaseThunk m))))
-  fromBase (i, (j, (k, (l, m)))) = (fromBaseThunk i, fromBaseThunk j, fromBaseThunk k, fromBaseThunk l, fromBaseThunk m)
+  type Base (a, b, c, d, e) = (BaseCast a, (BaseCast b, (BaseCast c, (BaseCast d, BaseCast e))))
+  toBase (i, j, k, l, m)   = (toBaseCast i, (toBaseCast j, (toBaseCast k, (toBaseCast l, toBaseCast m))))
+  fromBase (i, (j, (k, (l, m)))) = (fromBaseCast i, fromBaseCast j, fromBaseCast k, fromBaseCast l, fromBaseCast m)
 
 instance Argument a => Argument [a] where
-  type Base [a] = Either () (BaseThunk a, BaseThunk [a])
+  type Base [a] = Either () (BaseCast a, BaseCast [a])
   toBase []        = Left ()
-  toBase (x:xs)    = Right (toBaseThunk x, toBaseThunk xs)
+  toBase (x:xs)    = Right (toBaseCast x, toBaseCast xs)
   fromBase (Left  ())      = []
-  fromBase (Right (x, xs)) = (fromBaseThunk x:fromBaseThunk xs)
+  fromBase (Right (x, xs)) = (fromBaseCast x:fromBaseCast xs)
 
 instance Argument Bool where
   type Base Bool = Either () ()
@@ -52,16 +52,16 @@ instance Argument Bool where
   fromBase (Right ()) = True
 
 instance Argument a => Argument (Maybe a) where
-  type Base (Maybe a) = Either () (BaseThunk a)
+  type Base (Maybe a) = Either () (BaseCast a)
   toBase Nothing  = Left ()
-  toBase (Just x) = Right (toBaseThunk x)
+  toBase (Just x) = Right (toBaseCast x)
   fromBase (Left  ()) = Nothing
-  fromBase (Right x)  = Just (fromBaseThunk x)
+  fromBase (Right x)  = Just (fromBaseCast x)
 
 instance (Argument a, Argument b) => Argument (Either a b) where
-  type Base (Either a b) = Either (BaseThunk a) (BaseThunk b)
-  toBase   = either (Left . toBaseThunk) (Right . toBaseThunk)
-  fromBase = either (Left . fromBaseThunk) (Right . fromBaseThunk)
+  type Base (Either a b) = Either (BaseCast a) (BaseCast b)
+  toBase   = either (Left . toBaseCast) (Right . toBaseCast)
+  fromBase = either (Left . fromBaseCast) (Right . fromBaseCast)
 
 instance Argument Nat where
   type Base Nat = Nat
