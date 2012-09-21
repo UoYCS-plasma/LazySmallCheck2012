@@ -77,12 +77,12 @@ deriveArgument tname = do
   let proT t0 t1 = [t| ($(t0), $(t1)) |]
   let instBase (TySynInstD base _ _) = tySynInstD base [tfullname]
          (foldr sumT unitT 
-          [ foldr proT unitT [ [t| BaseThunk $(return t) |] | t <- ts ]
+          [ foldr proT unitT [ [t| BaseCast $(return t) |] | t <- ts ]
           | (c, ts) <- tconstrs' ])
       instBase x = return x
   -- Change instance for toBase
   let proE x y = [| ($x, $y) |]
-  let toBaseE name = [| toBaseThunk $(varE name) |]
+  let toBaseE name = [| toBaseCast $(varE name) |]
   let buildBaseE 0 vs = [| Left  $(foldr (proE . toBaseE) [| () |] vs) |]
       buildBaseE n vs = [| Right $(buildBaseE (n - 1) vs) |]
   let instTo (FunD to _) | "toBase" `isSuffixOf` show to = funD to
@@ -93,7 +93,7 @@ deriveArgument tname = do
       instTo x = return x
   -- Change instance for fromBase
   let proP x y = conP '(,) [x, y]
-  let fromBaseE name = [| fromBaseThunk $(varE name) |]
+  let fromBaseE name = [| fromBaseCast $(varE name) |]
   let buildBaseP 0 vs = conP 'Left [ foldr (proP . varP) wildP vs ]
       buildBaseP n vs = conP 'Right [ buildBaseP (n - 1) vs ]
   let instFrom (FunD from _) | "fromBase" `isSuffixOf` show from = funD from

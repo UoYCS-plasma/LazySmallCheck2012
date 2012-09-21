@@ -14,7 +14,7 @@ module Test.LazySmallCheck2012(
   -- ** cons\<N\> combinators,
   cons, cons0, cons1, cons2, cons3, cons4, cons5,
   -- * Argument construction,
-  Argument(..), BaseThunk(), isoIntNat, fromBaseThunk, toBaseThunk,
+  Argument(..), BaseCast(), isoIntNat, fromBaseCast, toBaseCast,
   -- * Default instances for 'Serial' and 'Argument'
   module Test.LazySmallCheck2012.Instances,
   module Test.LazySmallCheck2012.FunctionalValues.Instances

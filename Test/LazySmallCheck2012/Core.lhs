@@ -94,7 +94,6 @@ expansions at the path provided.
 >   fmap f (PTerm v es) = PTerm (fmap3 f v) (fmap3 f es)
 >
 > instance Applicative Term where
->   -- pure x = PTerm (pure3 x) (pure [])
 >   pure = TTerm . pure
 >   TTerm f <*> TTerm x = TTerm (f <*> x)
 >   fs      <*> xs      = PTerm

@@ -119,11 +119,11 @@ instance Serial Peano where
   series = cons0 Zero <|> cons1 Succ
 
 instance Argument Peano where
-  type Base Peano = Either () (BaseThunk Peano)
+  type Base Peano = Either () (BaseCast Peano)
   toBase Zero     = Left ()
-  toBase (Succ n) = Right (toBaseThunk n)
+  toBase (Succ n) = Right (toBaseCast n)
   fromBase (Left  _) = Zero
-  fromBase (Right n) = Succ (fromBaseThunk n)
+  fromBase (Right n) = Succ (fromBaseCast n)
 
 -- foldr1 f == foldl1 f
 
