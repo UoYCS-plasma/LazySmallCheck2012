@@ -21,9 +21,9 @@ module Test.LazySmallCheck2012(
   ) where
 
 import Control.Applicative
+import Control.Monad
 import Data.Data
 import Data.Generics.Instances
-import Data.Monoid
 import Data.Typeable
 import System.Exit
 
@@ -36,23 +36,23 @@ import Test.LazySmallCheck2012.FunctionalValues.Instances
 depthCheck :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
   (C ct cp Nothing)   -> putStrLn $ "LSC: Property holds after "
-                                 ++ show ct ++ " tests with "
-                                 ++ show cp ++ " values pruned."
+                                 ++ show ct ++ " tests covering "
+                                 ++ show cp ++ " values."
   (C ct cp (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
-                                    ++ show ct ++ " tests with "
-                                    ++ show cp ++ " values pruned."
+                                    ++ show ct ++ " tests covering "
+                                    ++ show cp ++ " value."
                             print cx
                             exitFailure
 
 -- | Machine readable output
-data DepthCheck = DepthCheck { dcCounterexample :: Maybe String, dcTests :: Integer, dcPruned :: Integer }
+data DepthCheck = DepthCheck { dcCounterexample :: Maybe String, dcTests :: BigWord, dcPruned :: BigWord }
   deriving Show
                           
 depthCheck_MR :: (Data a, Typeable a, Testable a) => Depth -> a -> DepthCheck
 depthCheck_MR d p = let C ct cp cx = counterexample d (mkTestWithCtx $ pure p)
                     in DepthCheck (fmap show cx) ct cp
                        
-seriesSize :: Depth -> Series a -> Integer
+seriesSize :: Depth -> Series a -> BigWord
 seriesSize d = tSize . mergeTerms . ($ d) . runSeries
 
 -- | Check a `Testable` `Property` for all depths. Runs forever.

@@ -8,8 +8,8 @@
 > import Control.Monad
 > import Data.Data
 > import Data.Maybe
-> import Data.Monoid
 > import Data.Typeable
+> import Data.Word
 > import System.Exit (exitFailure)
 >
 > import Test.PartialValues
@@ -75,11 +75,44 @@ pretty-printed representations of instantiated quantification
 variables. The `tExpand` component returns a list of Terms that are
 expansions at the path provided.
 
+> data BigWord = BWNothing | BWJust !Word32 deriving (Eq)
+>
+> instance Show BigWord where
+>   show BWNothing  = "<large>"
+>   show (BWJust n) = show n
+>
+> bigword :: a -> (Word32 -> a) -> BigWord -> a
+> bigword n j BWNothing  = n
+> bigword n j (BWJust x) = j x
+>
+> wordOrder :: Word32 -> Float
+> wordOrder = logBase 2 . fromInteger . toInteger
+>
+> instance Num BigWord where
+>   fromInteger = BWJust . fromInteger
+>   signum = bigword BWNothing (BWJust . signum)
+>   abs = id
+>   BWJust m + BWJust n  
+>    | m < (maxBound `div` 2) || 
+>      n < (maxBound `div` 2) = BWJust $ m + n
+>   _        + _        = BWNothing
+>   BWJust m - BWJust n  
+>    | m <= n = BWJust $ m - n
+>   _        - _        = BWNothing
+>   BWJust m * BWJust n  
+>    | wordOrder m + wordOrder n <= wordOrder maxBound
+>    = BWJust $ m * n
+>   _        * _        = BWNothing
+>
+> instance NFData BigWord where
+>   rnf BWNothing  = ()
+>   rnf (BWJust n) = rnf n
+
 > type DLocation = (Nesting, Path -> Path)
 >
 > data Term a = PTerm { ptValue  :: DLocation -> QuantCtx (Partial LSC a)
 >                     , ptExpand :: Path      -> [Term a]
->                     , ptSize   :: !Integer }
+>                     , ptSize   :: !BigWord }
 >             | TTerm   { ttValue :: QuantCtx a }
 >
 > tValue :: Term a -> DLocation -> QuantCtx (Partial LSC a)
@@ -90,7 +123,7 @@ expansions at the path provided.
 > tExpand (TTerm _)    = pure []
 > tExpand (PTerm _ es _) = es
 >
-> tSize :: Term a -> Integer
+> tSize :: Term a -> BigWord
 > tSize (TTerm _)     = 1
 > tSize (PTerm _ _ n) = n
 >
@@ -310,7 +343,7 @@ Refute
 
 The `Counter` comonad holds the number of tests performed.
 
-> data Counter a = C { ctrTests :: !Integer, ctrPrunes :: !Integer, ctrValue :: a }
+> data Counter a = C { ctrTests :: !BigWord, ctrPrunes :: !BigWord, ctrValue :: a }
 > 
 > instance Functor Counter where
 >   fmap f (C ct cp v) = C ct cp (f v)
@@ -338,8 +371,8 @@ through the `runPartial` function.
 > refute n d xs = terms $ runSeries xs d
 >   where
 >     terms = foldr reduce (pure $ Right Nothing) . map term
->     reduce (C m n (Right Nothing)) y = C (m + ctrTests y) (n + ctrPrunes y) (ctrValue y)
->     reduce x                       _ = x
+>     reduce (C ct cp (Right Nothing)) y = C (ct + ctrTests y) (cp + ctrPrunes y) (ctrValue y)
+>     reduce x                         _ = x
 >     term :: Term Property -> Counter (Either LSC (Maybe QuantInfo))
 >     term (TTerm v) = join2 $ C 1 0 $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
