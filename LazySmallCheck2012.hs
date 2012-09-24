@@ -50,7 +50,7 @@ data PruneStats = PruneStats { dcTests :: BigWord, dcIsTrue :: BigWord }
 pruneStats :: (Data a, Typeable a, Testable a) => Depth -> a -> PruneStats
 pruneStats d p = let C ct cx = either (error "LSC: Unresolved expansion") id 
                                  `fmap` allSat 0 d (mkTestWithCtx $ pure p)
-                 in PruneStats ct (bwlength cx)
+                 in PruneStats (fst ct) (snd ct)
 
 seriesSize :: Depth -> Series a -> BigWord
 seriesSize d = tSize . mergeTerms . ($ d) . runSeries

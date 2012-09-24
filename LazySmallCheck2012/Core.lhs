@@ -345,7 +345,7 @@ through the `runPartial` function.
 >     term :: Term Property -> Counter BigWord (Either LSC (Maybe QuantInfo))
 >     term (TTerm v) = join2 $ C 1 $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
->     term (PTerm v es pr) = refineWith pr es $ fmap2 qcToMaybe $ join2 
+>     term (PTerm v es _) = refineWith es $ fmap2 qcToMaybe $ join2 
 >       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
 >              fmap peek $ fmap2 prop $ v (n, id))
 >     prop :: Property -> Counter BigWord (Either LSC Bool)
@@ -353,21 +353,24 @@ through the `runPartial` function.
 >     prop (Not      p)    = not   `fmap2` prop p
 >     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
 >     prop (Implies  p q)  = (==>) `fmap2` prop p `appl2` prop q
->     prop (PAnd     p q)  = parcomm (&&) (prop p) (prop q)
+>     prop (PAnd     p q)  = pand (prop p) (prop q)
 >     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
 >     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
->     refineWith _  es (C ct (Left (Expand (n', ps))) )
+>     refineWith es (C ct (Left (Expand (n', ps))) )
 >       | n == n' = C ct id <*> terms (es ps)
->     refineWith _  es x = x
+>     refineWith es x = x
 >
 > -- | Parallel application of commutative binary Boolean functions.
-> parcomm :: Monoid c => (Bool -> Bool -> Bool) -> 
->            Counter c (Either LSC Bool) -> Counter c (Either LSC Bool) ->
->            Counter c (Either LSC Bool)
-> parcomm f p q = query (force $ ctrValue p) (force $ ctrValue q)
->   where force = join . fmap (peek . pure)
->         query (Left _) (Right _) = f `fmap2` q `appl2` p
->         query _        _         = f `fmap2` p `appl2` q
+> pand :: (NFData c, Monoid c) =>
+>         Counter c (Either LSC Bool) -> Counter c (Either LSC Bool) ->
+>         Counter c (Either LSC Bool)
+> pand p q = mix <$> query p <*> q
+>   where query = (either (pure . Left) id . peek . pure)
+>         mix x@(Right False) _               = x
+>         mix x@(Right True)  y               = y
+>         mix (Left    _)     y@(Right False) = y
+>         mix x@(Left  _)     _               = x
+
 
 > join2 :: Monoid c => Counter c (Either a (Counter c (Either a b))) -> Counter c (Either a b)
 > join2 (C m (Left x))         = C m (Left x)
@@ -379,35 +382,34 @@ through the `runPartial` function.
 > sinkQC :: Functor f => QuantCtx (f a) -> f (QuantCtx a)
 > sinkQC (QC ctx val) = fmap (QC ctx) val
 
-> qcToMaybe :: QuantCtx Bool -> Maybe QuantInfo
+> qcToMaybe :: QuantCtx Bool -> Maybe [AlignedString]
 > qcToMaybe (QC ctx False) = Just ctx
 > qcToMaybe (QC ctx True)  = Nothing
 >
 > allSat :: Nesting -> Depth -> Series Property ->
->           Counter BigWord (Either LSC [QuantInfo])
+>           Counter (BigWord, BigWord) (Either LSC [[AlignedString]])
 > allSat n d xs = terms $ runSeries xs d
 >   where
 >     terms = foldr reduce (pure $ Right []) . map term
 >     reduce xs ys = (++) `fmap2` xs `appl2` ys
->     term :: Term Property -> Counter BigWord (Either LSC [QuantInfo])
->     term (TTerm v) = join2 $ C 1 $ Right $ fmap2 qcToList
+>     term (TTerm v) = refineWith 1 (const []) $ join2 $ C (1, 0) $ Right $ fmap2 qcToList
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
 >     term (PTerm v es pr) = refineWith pr es $ fmap2 qcToList $ join2 
->       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>       (C (1, 0) $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
 >              fmap peek $ fmap2 prop $ v (n, id))
->     prop :: Property -> Counter BigWord (Either LSC Bool)
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
 >     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
 >     prop (Implies  p q)  = (==>) `fmap2` prop p `appl2` prop q
->     prop (PAnd     p q)  = parcomm (&&) (prop p) (prop q)
->     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
->     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
+>     prop (PAnd     p q)  = pand (prop p) (prop q)
+>     prop (ForAll   f xs) = (not.null) `fmap2` allSat (n + 1) (f d) xs
+>     prop (Exists   f xs) = null `fmap2` allSat (n + 1) (f d) (fmap Not xs)
 >     refineWith _  es (C ct (Left (Expand (n', ps))) )
 >       | n == n' = C ct id <*> terms (es ps)
+>     refineWith pr _  (C (m, n) x@(Right [_])) = C (m, n + pr) x
 >     refineWith _  es x = x
 >
-> qcToList :: QuantCtx Bool -> [QuantInfo]
+> qcToList :: QuantCtx Bool -> [[AlignedString]]
 > qcToList (QC ctx False) = []
 > qcToList (QC ctx True)  = [ctx]
 
