@@ -8,6 +8,7 @@
 > import Control.Monad
 > import Data.Data
 > import Data.Maybe
+> import Data.Monoid
 > import Data.Typeable
 > import Data.Word
 > import System.Exit (exitFailure)
@@ -107,6 +108,10 @@ expansions at the path provided.
 > instance NFData BigWord where
 >   rnf BWNothing  = ()
 >   rnf (BWJust n) = rnf n
+>
+> instance Monoid BigWord where
+>   mempty  = BWJust 0
+>   mappend = (+)
 
 > type DLocation = (Nesting, Path -> Path)
 >
@@ -343,17 +348,17 @@ Refute
 
 The `Counter` comonad holds the number of tests performed.
 
-> data Counter a = C { ctrTests :: !BigWord, ctrPrunes :: !BigWord, ctrValue :: a }
+> data Counter c a = C { ctrTests :: !c, ctrValue :: a }
 > 
-> instance Functor Counter where
->   fmap f (C ct cp v) = C ct cp (f v)
+> instance Functor (Counter c) where
+>   fmap f (C ct v) = C ct (f v)
 >
-> instance Applicative Counter where
->   pure = C 0 0
->   C fct fcp fv <*> C xct xcp xv = C (fct + xct) (fcp + xcp) (fv xv)
+> instance Monoid c => Applicative (Counter c) where
+>   pure = C mempty
+>   C fct fv <*> C xct xv = C (fct `mappend` xct) (fv xv)
 >
-> instance NFData a => NFData (Counter a) where
->   rnf (C ct cp x) = rnf ct `seq` rnf cp `seq` rnf x 
+> instance (NFData c, NFData a) => NFData (Counter c a) where
+>   rnf (C ct x) = rnf ct `seq` rnf x 
 
 A function that searches for `counterexample`s assuming no higher
 level quantification.
@@ -367,19 +372,19 @@ values library. At various points, exceptions are made explicit
 through the `runPartial` function.
 
 > refute :: Nesting -> Depth -> Series Property ->
->           Counter (Either LSC (Maybe QuantInfo))
+>           Counter BigWord (Either LSC (Maybe QuantInfo))
 > refute n d xs = terms $ runSeries xs d
 >   where
 >     terms = foldr reduce (pure $ Right Nothing) . map term
->     reduce (C ct cp (Right Nothing)) y = C (ct + ctrTests y) (cp + ctrPrunes y) (ctrValue y)
->     reduce x                         _ = x
->     term :: Term Property -> Counter (Either LSC (Maybe QuantInfo))
->     term (TTerm v) = join2 $ C 1 0 $ Right $ fmap2 qcToMaybe 
+>     reduce (C ct (Right Nothing)) y = C (ct + ctrTests y) (ctrValue y)
+>     reduce x                      _ = x
+>     term :: Term Property -> Counter BigWord (Either LSC (Maybe QuantInfo))
+>     term (TTerm v) = join2 $ C 1 $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
 >     term (PTerm v es pr) = refineWith pr es $ fmap2 qcToMaybe $ join2 
->       (C 1 0 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
->                fmap peek $ fmap2 prop $ v (n, id))
->     prop :: Property -> Counter (Either LSC Bool)
+>       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>              fmap peek $ fmap2 prop $ v (n, id))
+>     prop :: Property -> Counter BigWord (Either LSC Bool)
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
 >     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
@@ -387,23 +392,22 @@ through the `runPartial` function.
 >     prop (PAnd     p q)  = parcomm (&&) (prop p) (prop q)
 >     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
 >     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
->     refineWith _  es (C ct cp (Left (Expand (n', ps))) )
->       | n == n' = C ct cp id <*> terms (es ps)
->     refineWith pr es (C ct cp (Right Nothing)) = C ct (cp + pr) (Right Nothing)
+>     refineWith _  es (C ct (Left (Expand (n', ps))) )
+>       | n == n' = C ct id <*> terms (es ps)
 >     refineWith _  es x = x
 >
 > -- | Parallel application of commutative binary Boolean functions.
 > parcomm :: (Bool -> Bool -> Bool) -> 
->            Counter (Either LSC Bool) -> Counter (Either LSC Bool) ->
->            Counter (Either LSC Bool)
+>            Counter BigWord (Either LSC Bool) -> Counter BigWord (Either LSC Bool) ->
+>            Counter BigWord (Either LSC Bool)
 > parcomm f p q = query (force $ ctrValue p) (force $ ctrValue q)
 >   where force = join . fmap (peek . pure)
 >         query (Left _) (Right _) = f `fmap2` q `appl2` p
 >         query _        _         = f `fmap2` p `appl2` q
 
-> join2 :: Counter (Either a (Counter (Either a b))) -> Counter (Either a b)
-> join2 (C m n (Left x))            = C m n (Left x)
-> join2 (C m n (Right (C m' n' x))) = C (m + m') (n + n') x
+> join2 :: Counter BigWord (Either a (Counter BigWord (Either a b))) -> Counter BigWord (Either a b)
+> join2 (C m (Left x))         = C m (Left x)
+> join2 (C m (Right (C m' x))) = C (m + m') x
 
 > instance NFData LSC where
 >   rnf (Expand x) = rnf x

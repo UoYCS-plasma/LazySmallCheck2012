@@ -1,7 +1,7 @@
 {-# LANGUAGE ParallelListComp #-}
 module Test.LazySmallCheck2012( 
   -- * Depth-bounded, demand-driven property testing
-  depthCheck, depthCheck_MR, DepthCheck(..), test, Testable(),
+  depthCheck, {- depthCheck_MR, DepthCheck(..), -} test, Testable(),
   -- ** Property language
   Property(), PropertyLike(),
   tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
@@ -35,15 +35,14 @@ import Test.LazySmallCheck2012.FunctionalValues.Instances
 -- | Check a `Testable` `Property` to a specified depth.
 depthCheck :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
-  (C ct cp Nothing)   -> putStrLn $ "LSC: Property holds after "
-                                 ++ show ct ++ " tests covering "
-                                 ++ show cp ++ " values."
-  (C ct cp (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
-                                    ++ show ct ++ " tests covering "
-                                    ++ show cp ++ " value."
-                            print cx
-                            exitFailure
+  (C ct Nothing)   -> putStrLn $ "LSC: Property holds after "
+                                 ++ show ct ++ " tests."
+  (C ct (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
+                                    ++ show ct ++ " tests."
+                         print cx
+                         exitFailure
 
+{-
 -- | Machine readable output
 data DepthCheck = DepthCheck { dcCounterexample :: Maybe String, dcTests :: BigWord, dcPruned :: BigWord }
   deriving Show
@@ -51,7 +50,8 @@ data DepthCheck = DepthCheck { dcCounterexample :: Maybe String, dcTests :: BigW
 depthCheck_MR :: (Data a, Typeable a, Testable a) => Depth -> a -> DepthCheck
 depthCheck_MR d p = let C ct cp cx = counterexample d (mkTestWithCtx $ pure p)
                     in DepthCheck (fmap show cx) ct cp
-                       
+-}                       
+
 seriesSize :: Depth -> Series a -> BigWord
 seriesSize d = tSize . mergeTerms . ($ d) . runSeries
 
