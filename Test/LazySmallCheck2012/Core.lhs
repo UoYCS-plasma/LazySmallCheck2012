@@ -3,6 +3,7 @@
 
 > import Control.Applicative
 > import Control.Arrow
+> import qualified Control.Category as Cat
 > import Control.DeepSeq
 > import Control.Exception
 > import Control.Monad
@@ -10,9 +11,9 @@
 > import Data.Maybe
 > import Data.Monoid
 > import Data.Typeable
-> import Data.Word
 > import System.Exit (exitFailure)
 >
+> import Test.LazySmallCheck2012.BigWord
 > import Test.PartialValues
 
 > infixr 3 *&&*, |&&|
@@ -75,43 +76,6 @@ returns a possibly `Partial` value (containing exceptions of type
 pretty-printed representations of instantiated quantification
 variables. The `tExpand` component returns a list of Terms that are
 expansions at the path provided.
-
-> data BigWord = BWNothing | BWJust !Word32 deriving (Eq)
->
-> instance Show BigWord where
->   show BWNothing  = "<large>"
->   show (BWJust n) = show n
->
-> bigword :: a -> (Word32 -> a) -> BigWord -> a
-> bigword n j BWNothing  = n
-> bigword n j (BWJust x) = j x
->
-> wordOrder :: Word32 -> Float
-> wordOrder = logBase 2 . fromInteger . toInteger
->
-> instance Num BigWord where
->   fromInteger = BWJust . fromInteger
->   signum = bigword BWNothing (BWJust . signum)
->   abs = id
->   BWJust m + BWJust n  
->    | m < (maxBound `div` 2) || 
->      n < (maxBound `div` 2) = BWJust $ m + n
->   _        + _        = BWNothing
->   BWJust m - BWJust n  
->    | m <= n = BWJust $ m - n
->   _        - _        = BWNothing
->   BWJust m * BWJust n  
->    | wordOrder m + wordOrder n <= wordOrder maxBound
->    = BWJust $ m * n
->   _        * _        = BWNothing
->
-> instance NFData BigWord where
->   rnf BWNothing  = ()
->   rnf (BWJust n) = rnf n
->
-> instance Monoid BigWord where
->   mempty  = BWJust 0
->   mappend = (+)
 
 > type DLocation = (Nesting, Path -> Path)
 >
@@ -397,17 +361,17 @@ through the `runPartial` function.
 >     refineWith _  es x = x
 >
 > -- | Parallel application of commutative binary Boolean functions.
-> parcomm :: (Bool -> Bool -> Bool) -> 
->            Counter BigWord (Either LSC Bool) -> Counter BigWord (Either LSC Bool) ->
->            Counter BigWord (Either LSC Bool)
+> parcomm :: Monoid c => (Bool -> Bool -> Bool) -> 
+>            Counter c (Either LSC Bool) -> Counter c (Either LSC Bool) ->
+>            Counter c (Either LSC Bool)
 > parcomm f p q = query (force $ ctrValue p) (force $ ctrValue q)
 >   where force = join . fmap (peek . pure)
 >         query (Left _) (Right _) = f `fmap2` q `appl2` p
 >         query _        _         = f `fmap2` p `appl2` q
 
-> join2 :: Counter BigWord (Either a (Counter BigWord (Either a b))) -> Counter BigWord (Either a b)
+> join2 :: Monoid c => Counter c (Either a (Counter c (Either a b))) -> Counter c (Either a b)
 > join2 (C m (Left x))         = C m (Left x)
-> join2 (C m (Right (C m' x))) = C (m + m') x
+> join2 (C m (Right (C m' x))) = C (m `mappend` m') x
 
 > instance NFData LSC where
 >   rnf (Expand x) = rnf x
@@ -418,6 +382,34 @@ through the `runPartial` function.
 > qcToMaybe :: QuantCtx Bool -> Maybe QuantInfo
 > qcToMaybe (QC ctx False) = Just ctx
 > qcToMaybe (QC ctx True)  = Nothing
+>
+> allSat :: Nesting -> Depth -> Series Property ->
+>           Counter BigWord (Either LSC [QuantInfo])
+> allSat n d xs = terms $ runSeries xs d
+>   where
+>     terms = foldr reduce (pure $ Right []) . map term
+>     reduce xs ys = (++) `fmap2` xs `appl2` ys
+>     term :: Term Property -> Counter BigWord (Either LSC [QuantInfo])
+>     term (TTerm v) = join2 $ C 1 $ Right $ fmap2 qcToList
+>                      $ fmap sinkQC $ sinkQC $ fmap prop v
+>     term (PTerm v es pr) = refineWith pr es $ fmap2 qcToList $ join2 
+>       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>              fmap peek $ fmap2 prop $ v (n, id))
+>     prop :: Property -> Counter BigWord (Either LSC Bool)
+>     prop (Lift     v)    = pure2 v
+>     prop (Not      p)    = not   `fmap2` prop p
+>     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
+>     prop (Implies  p q)  = (==>) `fmap2` prop p `appl2` prop q
+>     prop (PAnd     p q)  = parcomm (&&) (prop p) (prop q)
+>     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
+>     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
+>     refineWith _  es (C ct (Left (Expand (n', ps))) )
+>       | n == n' = C ct id <*> terms (es ps)
+>     refineWith _  es x = x
+>
+> qcToList :: QuantCtx Bool -> [QuantInfo]
+> qcToList (QC ctx False) = []
+> qcToList (QC ctx True)  = [ctx]
 
 Composing functors
 ------------------

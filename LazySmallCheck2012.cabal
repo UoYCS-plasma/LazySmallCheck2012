@@ -27,8 +27,8 @@ Library
                        Test.LazySmallCheck2012.Instances, 
                        Test.LazySmallCheck2012.Core, 
                        Test.LazySmallCheck2012.FunctionalValues, 
-                       Test.LazySmallCheck2012.FunctionalValues.Instances
-                       Test.LazySmallCheck2012.TH
+                       Test.LazySmallCheck2012.FunctionalValues.Instances,
+                       Test.LazySmallCheck2012.TH, Test.LazySmallCheck2012.BigWord
   Build-depends:       base >=4 && < 5, deepseq >= 1.2 && < 2,
                        ghc >= 7 && < 8, syb >= 0.2 && < 0.4,
                        template-haskell >= 2.5 && < 3, 

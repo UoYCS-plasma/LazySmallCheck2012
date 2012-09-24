@@ -1,7 +1,7 @@
 {-# LANGUAGE ParallelListComp #-}
 module Test.LazySmallCheck2012( 
   -- * Depth-bounded, demand-driven property testing
-  depthCheck, {- depthCheck_MR, DepthCheck(..), -} test, Testable(),
+  depthCheck, pruneStats, PruneStats(..), test, Testable(),
   -- ** Property language
   Property(), PropertyLike(),
   tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
@@ -27,6 +27,7 @@ import Data.Generics.Instances
 import Data.Typeable
 import System.Exit
 
+import Test.LazySmallCheck2012.BigWord
 import Test.LazySmallCheck2012.Core
 import Test.LazySmallCheck2012.FunctionalValues hiding (Sum)
 import Test.LazySmallCheck2012.Instances
@@ -42,15 +43,14 @@ depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
                          print cx
                          exitFailure
 
-{-
 -- | Machine readable output
-data DepthCheck = DepthCheck { dcCounterexample :: Maybe String, dcTests :: BigWord, dcPruned :: BigWord }
+data PruneStats = PruneStats { dcTests :: BigWord, dcIsTrue :: BigWord }
   deriving Show
                           
-depthCheck_MR :: (Data a, Typeable a, Testable a) => Depth -> a -> DepthCheck
-depthCheck_MR d p = let C ct cp cx = counterexample d (mkTestWithCtx $ pure p)
-                    in DepthCheck (fmap show cx) ct cp
--}                       
+pruneStats :: (Data a, Typeable a, Testable a) => Depth -> a -> PruneStats
+pruneStats d p = let C ct cx = either (error "LSC: Unresolved expansion") id 
+                                 `fmap` allSat 0 d (mkTestWithCtx $ pure p)
+                 in PruneStats ct (bwlength cx)
 
 seriesSize :: Depth -> Series a -> BigWord
 seriesSize d = tSize . mergeTerms . ($ d) . runSeries
