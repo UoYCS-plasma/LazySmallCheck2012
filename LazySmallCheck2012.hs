@@ -26,6 +26,9 @@ import Data.Data
 import Data.Generics.Instances
 import Data.Typeable
 import System.Exit
+import Data.IORef
+import Control.Exception
+import System.CPUTime
 
 import Test.LazySmallCheck2012.BigWord
 import Test.LazySmallCheck2012.Core
@@ -47,10 +50,13 @@ depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
 data PruneStats = PruneStats { dcTests :: BigWord, dcIsTrue :: BigWord }
   deriving Show
                           
-pruneStats :: (Data a, Typeable a, Testable a) => Depth -> a -> PruneStats
-pruneStats d p = let C ct cx = either (error "LSC: Unresolved expansion") id 
-                                 `fmap` allSat 0 d (mkTestWithCtx $ pure p)
-                 in PruneStats (fst ct) (snd ct)
+pruneStats :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
+pruneStats d p = do let space = mkTestWithCtx $ pure p
+                    pgrs <- getCPUTime >>= newIORef . (,) 0 . (,) (seriesSize d space)
+                    result <- evaluate $ allSat (Just pgrs) 0 d space
+                    let C (ct :*: cp) cx = either (error "LSC: Unresolved expansion") id 
+                                           `fmap` result
+                    print $ PruneStats ct cp
 
 seriesSize :: Depth -> Series a -> BigWord
 seriesSize d = tSize . mergeTerms . ($ d) . runSeries

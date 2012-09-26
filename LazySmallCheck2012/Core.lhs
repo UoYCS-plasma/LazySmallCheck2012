@@ -1,4 +1,4 @@
-> {-# LANGUAGE DeriveDataTypeable #-}
+> {-# LANGUAGE DeriveDataTypeable, TypeOperators, ScopedTypeVariables #-}
 > module Test.LazySmallCheck2012.Core where
 
 > import Control.Applicative
@@ -10,13 +10,21 @@
 > import Data.Data
 > import Data.Maybe
 > import Data.Monoid
+> import Data.STRef
 > import Data.Typeable
 > import System.Exit (exitFailure)
+>
+> import Data.Fixed
+> import Data.IORef
+> import Debug.Trace
+> import System.CPUTime
+> import System.IO
+> import System.IO.Unsafe
 >
 > import Test.LazySmallCheck2012.BigWord
 > import Test.PartialValues
 
-> infixr 3 *&&*, |&&|
+> infixl 3 *&&*, |&&|
 > infixl 1 *==>*, ==>
 
 Special Lazy SmallCheck exceptions
@@ -312,7 +320,7 @@ Refute
 
 The `Counter` comonad holds the number of tests performed.
 
-> data Counter c a = C { ctrTests :: !c, ctrValue :: a }
+> data Counter c a = C { ctrTests :: !c, ctrValue :: !a }
 > 
 > instance Functor (Counter c) where
 >   fmap f (C ct v) = C ct (f v)
@@ -364,12 +372,14 @@ through the `runPartial` function.
 > pand :: (NFData c, Monoid c) =>
 >         Counter c (Either LSC Bool) -> Counter c (Either LSC Bool) ->
 >         Counter c (Either LSC Bool)
-> pand p q = mix <$> query p <*> q
->   where query = (either (pure . Left) id . peek . pure)
->         mix x@(Right False) _               = x
->         mix x@(Right True)  y               = y
->         mix (Left    _)     y@(Right False) = y
->         mix x@(Left  _)     _               = x
+> pand p q = mix <$> query p <*> query q
+>   where query = either (pure . Left) (fmap $ either (Left . Left) Right)
+>               . peekAll . pure
+>         rethrow = either (either Left throw) Right
+>         mix (Right False)   _               = Right False
+>         mix (Right True)    y               = rethrow y
+>         mix (Left (Left _)) (Right False)   = Right False
+>         mix x@(Left  _)     _               = rethrow x
 
 
 > join2 :: Monoid c => Counter c (Either a (Counter c (Either a b))) -> Counter c (Either a b)
@@ -386,32 +396,55 @@ through the `runPartial` function.
 > qcToMaybe (QC ctx False) = Just ctx
 > qcToMaybe (QC ctx True)  = Nothing
 >
-> allSat :: Nesting -> Depth -> Series Property ->
->           Counter (BigWord, BigWord) (Either LSC [[AlignedString]])
-> allSat n d xs = terms $ runSeries xs d
+> infixr 5 :*:
+> data (:*:) a b = !a :*: !b
+> instance (Monoid a, Monoid b) => Monoid (a :*: b) where
+>   mempty = mempty :*: mempty
+>   (xs :*: ys) `mappend` (xs' :*: ys') = (xs `mappend` xs') :*: (ys `mappend` ys')
+> instance (NFData a, NFData b) => NFData (a :*: b) where
+>   rnf (xs :*: ys) = rnf (xs, ys)
+>
+> unsafeAdd :: Maybe (IORef (BigWord, (BigWord, Integer))) -> BigWord -> a -> a
+> unsafeAdd Nothing _ = id
+> unsafeAdd (Just ref) c = seq $ unsafePerformIO $ do
+>   (space, oldTime) <- snd <$> readIORef ref
+>   modifyIORef' ref (first (+ c))
+>   newTime <- getCPUTime
+>   when (abs (oldTime - newTime) > 10 ^ 10) $ do    
+>     seen <- fst <$> readIORef ref
+>     modifyIORef' ref (second $ second $ const newTime)
+>     let s = maybe "<too big>" (showFixed False) (ratio seen space :: Maybe Micro)
+>     putStr (' ' : ' ' : s ++ "  \r") >> hFlush stdout
+>
+> ratio (BWJust x) (BWJust y) = Just $ fromIntegral x * 100 / fromIntegral y
+> ratio _ _ = Nothing
+>
+> allSat :: Maybe (IORef (BigWord, (BigWord, Integer))) -> 
+>           Nesting -> Depth -> Series Property ->
+>           Counter (BigWord :*: BigWord) (Either LSC Bool)
+> allSat pgrs n d xs = terms $ runSeries xs d
 >   where
->     terms = foldr reduce (pure $ Right []) . map term
->     reduce xs ys = (++) `fmap2` xs `appl2` ys
->     term (TTerm v) = refineWith 1 (const []) $ join2 $ C (1, 0) $ Right $ fmap2 qcToList
+>     terms = foldr reduce (pure $ Right False) . map term
+>     reduce xs ys = force $ (||) `fmap2` xs `appl2` ys
+>     term (TTerm v) = refineWith 1 (const []) 
+>                      $ join2 $ C (1 :*: 0) $ Right $ fmap2 (qcVal . output)
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
->     term (PTerm v es pr) = refineWith pr es $ fmap2 qcToList $ join2 
->       (C (1, 0) $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>     term (PTerm v es pr) = refineWith pr es $ fmap2 (qcVal . output) $ join2 
+>       (C (1 :*: 0) $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
 >              fmap peek $ fmap2 prop $ v (n, id))
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
 >     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
 >     prop (Implies  p q)  = (==>) `fmap2` prop p `appl2` prop q
 >     prop (PAnd     p q)  = pand (prop p) (prop q)
->     prop (ForAll   f xs) = (not.null) `fmap2` allSat (n + 1) (f d) xs
->     prop (Exists   f xs) = null `fmap2` allSat (n + 1) (f d) (fmap Not xs)
+>     prop (ForAll   f xs) = allSat Nothing (n + 1) (f d) xs
+>     prop (Exists   f xs) = allSat Nothing (n + 1) (f d) (fmap Not xs)
 >     refineWith _  es (C ct (Left (Expand (n', ps))) )
 >       | n == n' = C ct id <*> terms (es ps)
->     refineWith pr _  (C (m, n) x@(Right [_])) = C (m, n + pr) x
->     refineWith _  es x = x
->
-> qcToList :: QuantCtx Bool -> [[AlignedString]]
-> qcToList (QC ctx False) = []
-> qcToList (QC ctx True)  = [ctx]
+>     refineWith pr _  (C (m :*: n) x@(Right True)) = unsafeAdd pgrs pr $ C (m :*: n + pr) x
+>     refineWith pr  es x = unsafeAdd pgrs pr $ x
+>     output x@(QC ctx False) = x
+>     output x@(QC ctx True)  = {- show ctx `trace` -} x
 
 Composing functors
 ------------------

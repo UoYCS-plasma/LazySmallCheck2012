@@ -4,17 +4,17 @@ import Control.DeepSeq
 import Data.Monoid
 import Data.Word
 
-data BigWord = BWNothing | BWJust !Word32 deriving (Eq)
+data BigWord = BWNothing | BWJust !Word64 deriving (Eq)
 
 instance Show BigWord where
   show BWNothing  = "<large>"
   show (BWJust n) = show n
 
-bigword :: a -> (Word32 -> a) -> BigWord -> a
+bigword :: a -> (Word64 -> a) -> BigWord -> a
 bigword n j BWNothing  = n
 bigword n j (BWJust x) = j x
 
-wordOrder :: Word32 -> Float
+wordOrder :: Word64 -> Float
 wordOrder = logBase 2 . fromInteger . toInteger
 
 instance Num BigWord where
