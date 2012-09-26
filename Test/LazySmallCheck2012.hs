@@ -24,14 +24,18 @@ import Control.Applicative
 import Control.Monad
 import Data.Data
 import Data.Generics.Instances
+import Data.Monoid
 import Data.Typeable
 import System.Exit
+import Data.IORef
+import Control.Exception
+import System.CPUTime
 
-import Test.LazySmallCheck2012.BigWord
 import Test.LazySmallCheck2012.Core
 import Test.LazySmallCheck2012.FunctionalValues hiding (Sum)
 import Test.LazySmallCheck2012.Instances
 import Test.LazySmallCheck2012.FunctionalValues.Instances
+import Test.LazySmallCheck2012.Stats
 
 -- | Check a `Testable` `Property` to a specified depth.
 depthCheck :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
@@ -44,15 +48,18 @@ depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
                          exitFailure
 
 -- | Machine readable output
-data PruneStats = PruneStats { dcTests :: BigWord, dcIsTrue :: BigWord }
+data PruneStats = PruneStats { psTests :: Integer, psIsTrue :: Integer }
   deriving Show
                           
-pruneStats :: (Data a, Typeable a, Testable a) => Depth -> a -> PruneStats
-pruneStats d p = let C ct cx = either (error "LSC: Unresolved expansion") id 
-                                 `fmap` allSat 0 d (mkTestWithCtx $ pure p)
-                 in PruneStats ct (bwlength cx)
+pruneStats :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
+pruneStats d p = do let space = mkTestWithCtx $ pure p
+                    pgrs <- getCPUTime >>= newIORef . (,) 0 . (,) (seriesSize d space)
+                    result <- evaluate $ allSat (Just pgrs) 0 d space
+                    let C (ct, cp) cx = either (error "LSC: Unresolved expansion") id 
+                                           `fmap` result
+                    print $ PruneStats (getSum ct) (getSum cp)
 
-seriesSize :: Depth -> Series a -> BigWord
+seriesSize :: Depth -> Series a -> Integer
 seriesSize d = tSize . mergeTerms . ($ d) . runSeries
 
 -- | Check a `Testable` `Property` for all depths. Runs forever.

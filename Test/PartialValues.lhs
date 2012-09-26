@@ -13,7 +13,7 @@ purposes.
 
 > module Test.PartialValues(
 >   -- * Partial Values
->   Partial, isException, inject, peek, unsafePeek,
+>   Partial, isException, inject, peek, unsafePeek, peekAll,
 >   -- * Explicitly Partial Functors
 >   ExplicitF(..), ExplicitF2(..), BT(..), consBT, MaybePair(..),
 >   toMList_BT, toMaybe_MP) where
@@ -65,7 +65,13 @@ Peek all the way inside a 'Partial' value, catching the exception.
 > peek value = unsafePerformIO $
 >   (Right <$> evaluate (force (unsafePeek value)))
 >   `catch` (return . Left)
->   where force x = x `deepseq` x
+
+> peekAll :: (NFData a, Exception e) => Partial e a 
+>         -> Either (Either e SomeException) a
+> peekAll value = unsafePerformIO $
+>   (Right <$> evaluate (force (unsafePeek value)))
+>   `catches` [ Handler $ \err -> return $ Left $ Left err 
+>             , Handler $ \err -> return $ Left $ Right err ]
 
 'isException' tests for really partial values, i.e. ones that match
 an exception predicate at their head.
