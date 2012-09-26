@@ -1,27 +1,16 @@
-> {-# LANGUAGE DeriveDataTypeable, TypeOperators, ScopedTypeVariables #-}
+> {-# LANGUAGE DeriveDataTypeable #-}
 > module Test.LazySmallCheck2012.Core where
 
 > import Control.Applicative
 > import Control.Arrow
-> import qualified Control.Category as Cat
 > import Control.DeepSeq
 > import Control.Exception
 > import Control.Monad
 > import Data.Data
 > import Data.Maybe
 > import Data.Monoid
-> import Data.STRef
 > import Data.Typeable
-> import System.Exit (exitFailure)
 >
-> import Data.Fixed
-> import Data.IORef
-> import Debug.Trace
-> import System.CPUTime
-> import System.IO
-> import System.IO.Unsafe
->
-> import Test.LazySmallCheck2012.BigWord
 > import Test.PartialValues
 
 > infixl 3 *&&*, |&&|
@@ -89,7 +78,7 @@ expansions at the path provided.
 >
 > data Term a = PTerm { ptValue  :: DLocation -> QuantCtx (Partial LSC a)
 >                     , ptExpand :: Path      -> [Term a]
->                     , ptSize   :: !BigWord }
+>                     , ptSize   :: !Integer }
 >             | TTerm   { ttValue :: QuantCtx a }
 >
 > tValue :: Term a -> DLocation -> QuantCtx (Partial LSC a)
@@ -100,7 +89,7 @@ expansions at the path provided.
 > tExpand (TTerm _)    = pure []
 > tExpand (PTerm _ es _) = es
 >
-> tSize :: Term a -> BigWord
+> tSize :: Term a -> Integer
 > tSize (TTerm _)     = 1
 > tSize (PTerm _ _ n) = n
 >
@@ -344,19 +333,17 @@ values library. At various points, exceptions are made explicit
 through the `runPartial` function.
 
 > refute :: Nesting -> Depth -> Series Property ->
->           Counter BigWord (Either LSC (Maybe QuantInfo))
+>           Counter (Sum Integer) (Either LSC (Maybe QuantInfo))
 > refute n d xs = terms $ runSeries xs d
 >   where
 >     terms = foldr reduce (pure $ Right Nothing) . map term
->     reduce (C ct (Right Nothing)) y = C (ct + ctrTests y) (ctrValue y)
+>     reduce (C ct (Right Nothing)) y = C (ct `mappend` ctrTests y) (ctrValue y)
 >     reduce x                      _ = x
->     term :: Term Property -> Counter BigWord (Either LSC (Maybe QuantInfo))
->     term (TTerm v) = join2 $ C 1 $ Right $ fmap2 qcToMaybe 
+>     term (TTerm v) = join2 $ C (Sum 1) $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v
 >     term (PTerm v es _) = refineWith es $ fmap2 qcToMaybe $ join2 
->       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>       (C (Sum 1) $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
 >              fmap peek $ fmap2 prop $ v (n, id))
->     prop :: Property -> Counter BigWord (Either LSC Bool)
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
 >     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
@@ -388,6 +375,9 @@ through the `runPartial` function.
 
 > instance NFData LSC where
 >   rnf (Expand x) = rnf x
+>
+> instance NFData a => NFData (Sum a) where
+>   rnf (Sum x) = rnf x
 
 > sinkQC :: Functor f => QuantCtx (f a) -> f (QuantCtx a)
 > sinkQC (QC ctx val) = fmap (QC ctx) val
@@ -395,56 +385,6 @@ through the `runPartial` function.
 > qcToMaybe :: QuantCtx Bool -> Maybe [AlignedString]
 > qcToMaybe (QC ctx False) = Just ctx
 > qcToMaybe (QC ctx True)  = Nothing
->
-> infixr 5 :*:
-> data (:*:) a b = !a :*: !b
-> instance (Monoid a, Monoid b) => Monoid (a :*: b) where
->   mempty = mempty :*: mempty
->   (xs :*: ys) `mappend` (xs' :*: ys') = (xs `mappend` xs') :*: (ys `mappend` ys')
-> instance (NFData a, NFData b) => NFData (a :*: b) where
->   rnf (xs :*: ys) = rnf (xs, ys)
->
-> unsafeAdd :: Maybe (IORef (BigWord, (BigWord, Integer))) -> BigWord -> a -> a
-> unsafeAdd Nothing _ = id
-> unsafeAdd (Just ref) c = seq $ unsafePerformIO $ do
->   (space, oldTime) <- snd <$> readIORef ref
->   modifyIORef' ref (first (+ c))
->   newTime <- getCPUTime
->   when (abs (oldTime - newTime) > 10 ^ 10) $ do    
->     seen <- fst <$> readIORef ref
->     modifyIORef' ref (second $ second $ const newTime)
->     let s = maybe "<too big>" (showFixed False) (ratio seen space :: Maybe Micro)
->     putStr (' ' : ' ' : s ++ "  \r") >> hFlush stdout
->
-> ratio (BWJust x) (BWJust y) = Just $ fromIntegral x * 100 / fromIntegral y
-> ratio _ _ = Nothing
->
-> allSat :: Maybe (IORef (BigWord, (BigWord, Integer))) -> 
->           Nesting -> Depth -> Series Property ->
->           Counter (BigWord :*: BigWord) (Either LSC Bool)
-> allSat pgrs n d xs = terms $ runSeries xs d
->   where
->     terms = foldr reduce (pure $ Right False) . map term
->     reduce xs ys = force $ (||) `fmap2` xs `appl2` ys
->     term (TTerm v) = refineWith 1 (const []) 
->                      $ join2 $ C (1 :*: 0) $ Right $ fmap2 (qcVal . output)
->                      $ fmap sinkQC $ sinkQC $ fmap prop v
->     term (PTerm v es pr) = refineWith pr es $ fmap2 (qcVal . output) $ join2 
->       (C (1 :*: 0) $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
->              fmap peek $ fmap2 prop $ v (n, id))
->     prop (Lift     v)    = pure2 v
->     prop (Not      p)    = not   `fmap2` prop p
->     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
->     prop (Implies  p q)  = (==>) `fmap2` prop p `appl2` prop q
->     prop (PAnd     p q)  = pand (prop p) (prop q)
->     prop (ForAll   f xs) = allSat Nothing (n + 1) (f d) xs
->     prop (Exists   f xs) = allSat Nothing (n + 1) (f d) (fmap Not xs)
->     refineWith _  es (C ct (Left (Expand (n', ps))) )
->       | n == n' = C ct id <*> terms (es ps)
->     refineWith pr _  (C (m :*: n) x@(Right True)) = unsafeAdd pgrs pr $ C (m :*: n + pr) x
->     refineWith pr  es x = unsafeAdd pgrs pr $ x
->     output x@(QC ctx False) = x
->     output x@(QC ctx True)  = {- show ctx `trace` -} x
 
 Composing functors
 ------------------
