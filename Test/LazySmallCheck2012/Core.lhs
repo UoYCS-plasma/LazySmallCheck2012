@@ -1,4 +1,4 @@
-> {-# LANGUAGE DeriveDataTypeable #-}
+> {-# LANGUAGE DeriveDataTypeable, BangPatterns #-}
 > module Test.LazySmallCheck2012.Core where
 
 > import Control.Applicative
@@ -49,6 +49,11 @@ instantiated quantification variable values.
 >                    | Append String AlignedString
 >                    | Braces [AlignedString]
 >
+> instance NFData AlignedString where
+>   rnf (LAlign xs) = rnf xs
+>   rnf (Append l r) = r `deepseq` rnf r
+>   rnf (Braces xs) = rnf xs
+>
 > string = (`Append` LAlign [])
 >
 > showDoc n (LAlign []) = ""
@@ -76,10 +81,10 @@ expansions at the path provided.
 
 > type DLocation = (Nesting, Path -> Path)
 >
-> data Term a = PTerm { ptValue  :: DLocation -> QuantCtx (Partial LSC a)
->                     , ptExpand :: Path      -> [Term a]
+> data Term a = PTerm { ptValue  :: (DLocation -> QuantCtx (Partial LSC a))
+>                     , ptExpand :: (Path      -> [Term a])
 >                     , ptSize   :: !Integer }
->             | TTerm   { ttValue :: QuantCtx a }
+>             | TTerm { ttValue :: QuantCtx a }
 >
 > tValue :: Term a -> DLocation -> QuantCtx (Partial LSC a)
 > tValue (TTerm v)   = pure $ fmap pure v
@@ -319,7 +324,7 @@ The `Counter` comonad holds the number of tests performed.
 >   C fct fv <*> C xct xv = C (fct `mappend` xct) (fv xv)
 >
 > instance (NFData c, NFData a) => NFData (Counter c a) where
->   rnf (C ct x) = rnf ct `seq` rnf x 
+>   rnf (C ct x) = ct `deepseq` x `deepseq` ()
 
 A function that searches for `counterexample`s assuming no higher
 level quantification.
@@ -334,16 +339,16 @@ through the `runPartial` function.
 
 > refute :: Nesting -> Depth -> Series Property ->
 >           Counter (Sum Integer) (Either LSC (Maybe QuantInfo))
-> refute n d xs = terms $ runSeries xs d
+> refute n d xs = {- SCC refute #-} (terms $ runSeries xs d)
 >   where
->     terms = foldr reduce (pure $ Right Nothing) . map term
->     reduce (C ct (Right Nothing)) y = C (ct `mappend` ctrTests y) (ctrValue y)
->     reduce x                      _ = x
->     term (TTerm v) = join2 $ C (Sum 1) $ Right $ fmap2 qcToMaybe 
->                      $ fmap sinkQC $ sinkQC $ fmap prop v
->     term (PTerm v es _) = refineWith es $ fmap2 qcToMaybe $ join2 
+>     terms xs = {-# SCC terms #-} foldr (reduce . term) (pure $ Right Nothing) xs
+>     reduce (C ct (Right Nothing)) y = {-# SCC reduce0 #-} (C ct id <*> y)
+>     reduce x                      _ = {-# SCC reduce1 #-} x
+>     term (TTerm v) = {-# SCC term0 #-} (join2 $ C (Sum 1) $ Right $ fmap2 qcToMaybe 
+>                      $ fmap sinkQC $ sinkQC $ fmap prop v)
+>     term (PTerm v es _) = {-# SCC term1 #-} (refineWith es $ fmap2 qcToMaybe $ join2 
 >       (C (Sum 1) $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
->              fmap peek $ fmap2 prop $ v (n, id))
+>              fmap peek $ fmap2 prop $ v (n, id)))
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
 >     prop (And      p q)  = (&&)  `fmap2` prop p `appl2` prop q
@@ -352,8 +357,8 @@ through the `runPartial` function.
 >     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
 >     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
 >     refineWith es (C ct (Left (Expand (n', ps))) )
->       | n == n' = C ct id <*> terms (es ps)
->     refineWith es x = x
+>       | n == n' = {-# SCC refineWith0 #-} (C ct id <*> terms (es ps))
+>     refineWith es x = {-# SCC refineWith1 #-} x
 >
 > -- | Parallel application of commutative binary Boolean functions.
 > pand :: (NFData c, Monoid c) =>
