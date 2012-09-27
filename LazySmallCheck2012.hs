@@ -1,13 +1,13 @@
 {-# LANGUAGE ParallelListComp #-}
 module Test.LazySmallCheck2012( 
   -- * Depth-bounded, demand-driven property testing
-  depthCheck, {- pruneStats, PruneStats(..), -} test, Testable(),
+  depthCheck, pruneStats, PruneStats(..), test, Testable(),
   -- ** Property language
   Property(), PropertyLike(),
   tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
   forAll, exists, forAllDeeperBy, existsDeeperBy, 
   -- * Serial and Series definition
-  Serial(series), Series(), -- seriesSize,
+  Serial(series), Series(), seriesSize,
   -- * Series construction
   module Control.Applicative, (\/), (><), applZC, 
   deeperBy, zeroCost, drawnFrom, (<.>),
