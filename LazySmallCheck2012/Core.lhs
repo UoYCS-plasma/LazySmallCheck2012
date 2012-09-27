@@ -1,4 +1,4 @@
-> {-# LANGUAGE DeriveDataTypeable, BangPatterns #-}
+> {-# LANGUAGE DeriveDataTypeable #-}
 > module Test.LazySmallCheck2012.Core where
 
 > import Control.Applicative
@@ -8,12 +8,11 @@
 > import Control.Monad
 > import Data.Data
 > import Data.Maybe
-> import Data.Monoid
 > import Data.Typeable
 >
 > import Test.PartialValues
 
-> infixl 3 *&&*, |&&|
+> infixr 3 *&&*, |&&|
 > infixl 1 *==>*, ==>
 
 Special Lazy SmallCheck exceptions
@@ -83,7 +82,7 @@ expansions at the path provided.
 >
 > data Term a = PTerm { ptValue  :: (DLocation -> QuantCtx (Partial LSC a))
 >                     , ptExpand :: (Path      -> [Term a])
->                     , ptSize   :: !Integer }
+>                     , ptSize   :: Integer }
 >             | TTerm { ttValue :: QuantCtx a }
 >
 > tValue :: Term a -> DLocation -> QuantCtx (Partial LSC a)
@@ -93,11 +92,11 @@ expansions at the path provided.
 > tExpand :: Term a -> Path -> [Term a]
 > tExpand (TTerm _)    = pure []
 > tExpand (PTerm _ es _) = es
->
+> 
 > tSize :: Term a -> Integer
 > tSize (TTerm _)     = 1
 > tSize (PTerm _ _ n) = n
->
+> 
 > instance Functor Term where
 >   fmap f (TTerm v)      = TTerm (fmap f v)
 >   fmap f (PTerm v es n) = PTerm (fmap3 f v) (fmap3 f es) n
@@ -314,16 +313,16 @@ Refute
 
 The `Counter` comonad holds the number of tests performed.
 
-> data Counter c a = C { ctrTests :: !c, ctrValue :: !a }
+> data Counter a = C { ctrTests :: !Integer, ctrValue :: a }
 > 
-> instance Functor (Counter c) where
+> instance Functor Counter where
 >   fmap f (C ct v) = C ct (f v)
 >
-> instance Monoid c => Applicative (Counter c) where
->   pure = C mempty
->   C fct fv <*> C xct xv = C (fct `mappend` xct) (fv xv)
+> instance Applicative Counter where
+>   pure = C 0
+>   C fct fv <*> C xct xv = C (fct + xct) (fv xv)
 >
-> instance (NFData c, NFData a) => NFData (Counter c a) where
+> instance (NFData a) => NFData (Counter a) where
 >   rnf (C ct x) = ct `deepseq` x `deepseq` ()
 
 A function that searches for `counterexample`s assuming no higher
@@ -338,16 +337,16 @@ values library. At various points, exceptions are made explicit
 through the `runPartial` function.
 
 > refute :: Nesting -> Depth -> Series Property ->
->           Counter (Sum Integer) (Either LSC (Maybe QuantInfo))
+>           Counter (Either LSC (Maybe QuantInfo))
 > refute n d xs = {- SCC refute #-} (terms $ runSeries xs d)
 >   where
 >     terms xs = {-# SCC terms #-} foldr (reduce . term) (pure $ Right Nothing) xs
 >     reduce (C ct (Right Nothing)) y = {-# SCC reduce0 #-} (C ct id <*> y)
 >     reduce x                      _ = {-# SCC reduce1 #-} x
->     term (TTerm v) = {-# SCC term0 #-} (join2 $ C (Sum 1) $ Right $ fmap2 qcToMaybe 
+>     term (TTerm v) = {-# SCC term0 #-} (join2 $ C 1 $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v)
 >     term (PTerm v es _) = {-# SCC term1 #-} (refineWith es $ fmap2 qcToMaybe $ join2 
->       (C (Sum 1) $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
+>       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
 >              fmap peek $ fmap2 prop $ v (n, id)))
 >     prop (Lift     v)    = pure2 v
 >     prop (Not      p)    = not   `fmap2` prop p
@@ -361,9 +360,8 @@ through the `runPartial` function.
 >     refineWith es x = {-# SCC refineWith1 #-} x
 >
 > -- | Parallel application of commutative binary Boolean functions.
-> pand :: (NFData c, Monoid c) =>
->         Counter c (Either LSC Bool) -> Counter c (Either LSC Bool) ->
->         Counter c (Either LSC Bool)
+> pand :: Counter (Either LSC Bool) -> Counter (Either LSC Bool) ->
+>         Counter (Either LSC Bool)
 > pand p q = mix <$> query p <*> query q
 >   where query = either (pure . Left) (fmap $ either (Left . Left) Right)
 >               . peekAll . pure
@@ -374,15 +372,13 @@ through the `runPartial` function.
 >         mix x@(Left  _)     _               = rethrow x
 
 
-> join2 :: Monoid c => Counter c (Either a (Counter c (Either a b))) -> Counter c (Either a b)
+> join2 :: Counter (Either a (Counter (Either a b))) -> Counter (Either a b)
 > join2 (C m (Left x))         = C m (Left x)
-> join2 (C m (Right (C m' x))) = C (m `mappend` m') x
+> join2 (C m (Right (C m' x))) = C (m + m') x
 
 > instance NFData LSC where
 >   rnf (Expand x) = rnf x
 >
-> instance NFData a => NFData (Sum a) where
->   rnf (Sum x) = rnf x
 
 > sinkQC :: Functor f => QuantCtx (f a) -> f (QuantCtx a)
 > sinkQC (QC ctx val) = fmap (QC ctx) val
