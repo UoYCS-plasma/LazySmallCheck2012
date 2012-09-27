@@ -28,14 +28,14 @@ Lazy SmallCheck 2012 is open-source software liscenced under BSD
     all functionality *apart* from Template Haskell deriving. 
 *   `Test/PartialValues.lhs`  — Library for handling values that may
     contain exceptions. 
-*   `Test/LazySmallCheck2012/BigWord.lhs`  — Experimental library for
-    handling and ignoring big numbers.
 *   `Test/LazySmallCheck2012/Core.lhs`  — Core LSC2012 data structures
     and functions. 
 *   `Test/LazySmallCheck2012/FunctionalValues.lhs`  — Functional value
     library for LSC2012. 
 *   `Test/LazySmallCheck2012/Instances.hs`  — Instances of Serial
     class for common Haskell 98 datatypes. 
+*   `Test/LazySmallCheck2012/Stats.lhs`  — Collects statistics on
+    pruning power.
 *   `Test/LazySmallCheck2012/TH.hs`  — Template Haskell functions for
     deriving Serial and Argument instances. 
 *   `Test/LazySmallCheck2012/FunctionalValues/Instances.hs`  —
