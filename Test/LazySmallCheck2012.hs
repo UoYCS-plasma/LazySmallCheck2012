@@ -1,13 +1,13 @@
 {-# LANGUAGE ParallelListComp #-}
 module Test.LazySmallCheck2012( 
   -- * Depth-bounded, demand-driven property testing
-  depthCheck, pruneStats, PruneStats(..), test, Testable(),
+  depthCheck, {- pruneStats, PruneStats(..), -} test, Testable(),
   -- ** Property language
   Property(), PropertyLike(),
   tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
   forAll, exists, forAllDeeperBy, existsDeeperBy, 
   -- * Serial and Series definition
-  Serial(series), Series(), seriesSize,
+  Serial(series), Series(), -- seriesSize,
   -- * Series construction
   module Control.Applicative, (\/), (><), applZC, 
   deeperBy, zeroCost, drawnFrom, (<.>),
@@ -24,7 +24,6 @@ import Control.Applicative
 import Control.Monad
 import Data.Data
 import Data.Generics.Instances
-import Data.Monoid
 import Data.Typeable
 import System.Exit
 import Data.IORef
@@ -41,11 +40,12 @@ import Test.LazySmallCheck2012.Stats
 depthCheck :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
   (C ct Nothing)   -> putStrLn $ "LSC: Property holds after "
-                                 ++ show (getSum ct) ++ " tests."
+                                 ++ show (ct) ++ " tests."
   (C ct (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
-                                    ++ show (getSum ct) ++ " tests."
+                                    ++ show (ct) ++ " tests."
                          print cx
                          exitFailure
+
 
 -- | Machine readable output
 data PruneStats = PruneStats { psTests :: Integer, psIsTrue :: Integer }
@@ -55,9 +55,9 @@ pruneStats :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
 pruneStats d p = do let space = mkTestWithCtx $ pure p
                     pgrs <- getCPUTime >>= newIORef . (,) 0 . (,) (seriesSize d space)
                     result <- evaluate $ allSat (Just pgrs) 0 d space
-                    let C (ct, cp) cx = either (error "LSC: Unresolved expansion") id 
+                    let C ct cp = either (error "LSC: Unresolved expansion") id 
                                            `fmap` result
-                    print $ PruneStats (getSum ct) (getSum cp)
+                    print $ PruneStats ct cp
 
 seriesSize :: Depth -> Series a -> Integer
 seriesSize d = tSize . mergeTerms . ($ d) . runSeries
