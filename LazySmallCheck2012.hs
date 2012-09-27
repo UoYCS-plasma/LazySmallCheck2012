@@ -41,9 +41,9 @@ import Test.LazySmallCheck2012.Stats
 depthCheck :: (Data a, Typeable a, Testable a) => Depth -> a -> IO ()
 depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
   (C ct Nothing)   -> putStrLn $ "LSC: Property holds after "
-                                 ++ show ct ++ " tests."
+                                 ++ show (getSum ct) ++ " tests."
   (C ct (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
-                                    ++ show ct ++ " tests."
+                                    ++ show (getSum ct) ++ " tests."
                          print cx
                          exitFailure
 
