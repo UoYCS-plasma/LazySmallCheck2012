@@ -18,11 +18,11 @@ unsafeAdd :: Maybe (IORef (Integer, (Integer, Integer))) -> Integer -> a -> a
 unsafeAdd Nothing _ = id
 unsafeAdd (Just ref) c = seq $ unsafePerformIO $ do
   (space, oldTime) <- snd <$> readIORef ref
-  modifyIORef' ref (first (+ c))
+  modifyIORef ref (first (+ c))
   newTime <- getCPUTime
   when (abs (oldTime - newTime) > 10 ^ 10) $ do    
     seen <- fst <$> readIORef ref
-    modifyIORef' ref (second $ second $ const newTime)
+    modifyIORef ref (second $ second $ const newTime)
     let s = showFixed False (ratio seen space :: Micro)
     putStr (' ' : ' ' : s ++ "  \r") >> hFlush stdout
 
