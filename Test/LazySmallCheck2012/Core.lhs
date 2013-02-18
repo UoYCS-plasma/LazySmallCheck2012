@@ -338,14 +338,14 @@ through the `runPartial` function.
 
 > refute :: Nesting -> Depth -> Series Property ->
 >           Counter (Either LSC (Maybe QuantInfo))
-> refute n d xs = {- SCC refute #-} (terms $ runSeries xs d)
+> refute n d xs = (terms $ runSeries xs d)
 >   where
->     terms xs = {-# SCC terms #-} foldr (reduce . term) (pure $ Right Nothing) xs
->     reduce (C ct (Right Nothing)) y = {-# SCC reduce0 #-} (C ct id <*> y)
->     reduce x                      _ = {-# SCC reduce1 #-} x
->     term (TTerm v) = {-# SCC term0 #-} (join2 $ C 1 $ Right $ fmap2 qcToMaybe 
+>     terms xs = foldr (reduce . term) (pure $ Right Nothing) xs
+>     reduce (C ct (Right Nothing)) y = (C ct id <*> y)
+>     reduce x                      _ = x
+>     term (TTerm v) = (join2 $ C 1 $ Right $ fmap2 qcToMaybe 
 >                      $ fmap sinkQC $ sinkQC $ fmap prop v)
->     term (PTerm v es _) = {-# SCC term1 #-} (refineWith es $ fmap2 qcToMaybe $ join2 
+>     term (PTerm v es _) = (refineWith es $ fmap2 qcToMaybe $ join2 
 >       (C 1 $ fmap2 sinkQC $ fmap sinkQC $ sinkQC $ 
 >              fmap peek $ fmap2 prop $ v (n, id)))
 >     prop (Lift     v)    = pure2 v
@@ -356,8 +356,8 @@ through the `runPartial` function.
 >     prop (ForAll   f xs) = isNothing `fmap2` refute (n + 1) (f d) xs
 >     prop (Exists   f xs) = isJust `fmap2` refute (n + 1) (f d) (fmap Not xs)
 >     refineWith es (C ct (Left (Expand (n', ps))) )
->       | n == n' = {-# SCC refineWith0 #-} (C ct id <*> terms (es ps))
->     refineWith es x = {-# SCC refineWith1 #-} x
+>       | n == n' = (C ct id <*> terms (es ps))
+>     refineWith es x = x
 >
 > -- | Parallel application of commutative binary Boolean functions.
 > pand :: Counter (Either LSC Bool) -> Counter (Either LSC Bool) ->
@@ -386,6 +386,7 @@ through the `runPartial` function.
 > qcToMaybe :: QuantCtx Bool -> Maybe [AlignedString]
 > qcToMaybe (QC ctx False) = Just ctx
 > qcToMaybe (QC ctx True)  = Nothing
+
 
 Composing functors
 ------------------

@@ -73,11 +73,11 @@ function `($)`. It is used to lookup a key and return a value.
 > applyL1 (Case t) = applyL2 t
 >
 > applyL2 :: Level2 k v -> k -> v
-> applyL2 (Valu v)   _             = v
-> applyL2 (Sum  t _) (Left k)      = t `applyL2` k
-> applyL2 (Sum  _ t) (Right k)     = t `applyL2` k
-> applyL2 (Prod t)   (j, k)        = t `applyL2` j `applyL2` k
-> applyL2 (Natu m d) (Nat k)       = foldr const d $ drop k m
+> applyL2 (Valu v)   _            = v
+> applyL2 (Sum  t _) (Left k)     = t `applyL2` k
+> applyL2 (Sum  _ t) (Right k)    = t `applyL2` k
+> applyL2 (Prod t)   (j, k)       = t `applyL2` j `applyL2` k
+> applyL2 (Natu m d) (Nat k)      = foldr const d $ drop k m
 > applyL2 (Cast t)   (BaseCast k) = t `applyL1` k
 
 The `tabulateT` function converts a trie into an

@@ -1,9 +1,9 @@
 {-# LANGUAGE ParallelListComp #-}
 module Test.LazySmallCheck2012( 
   -- * Depth-bounded, demand-driven property testing
-  depthCheck, pruneStats, PruneStats(..), test, Testable(),
+  depthCheck, depthCheckResult, pruneStats, PruneStats(..), test, Testable(),
   -- ** Property language
-  Property(), PropertyLike(),
+  Property(), PropertyLike(..),
   tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
   forAll, exists, forAllDeeperBy, existsDeeperBy, 
   -- * Serial and Series definition
@@ -46,6 +46,15 @@ depthCheck d p = case counterexample d (mkTestWithCtx $ pure p) of
                          print cx
                          exitFailure
 
+depthCheckResult :: (Data a, Typeable a, Testable a) => Depth -> a -> IO Bool
+depthCheckResult d p = case counterexample d (mkTestWithCtx $ pure p) of
+  (C ct Nothing)   -> do putStrLn $ "LSC: Property holds after "
+                                    ++ show (ct) ++ " tests."
+                         return True
+  (C ct (Just cx)) -> do putStrLn $ "LSC: Counterexample found after "
+                                    ++ show (ct) ++ " tests."
+                         print cx
+                         return False
 
 -- | Machine readable output
 data PruneStats = PruneStats { psTests :: Integer, psIsTrue :: Integer }
