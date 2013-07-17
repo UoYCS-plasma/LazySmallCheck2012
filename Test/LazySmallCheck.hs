@@ -1,7 +1,23 @@
 {-# LANGUAGE DeriveGeneric, DeriveDataTypeable, DefaultSignatures, 
              FlexibleContexts, FlexibleInstances, TypeOperators, GADTs, 
              Rank2Types, MonadComprehensions, ParallelListComp #-}
-module Test.LazySmallCheck where
+module Test.LazySmallCheck( 
+  -- * Depth-bounded, demand-driven property testing
+  depthCheck,
+  -- ** Property language
+  Property(), PropertyLike(..),
+  tt, ff, inv, (*&&*), (*==>*), (==>),
+  forAll, exists, forAllDeeperBy, existsDeeperBy, 
+  -- * Serial and Series definition
+  Serial(series), Series(), 
+  -- * Series construction
+  module Control.Applicative, (\/), (><), ap0, 
+  deeperBy, drawnFrom, 
+  -- ** cons\<N\> combinators,
+  cons, cons0, cons1, cons2, cons3, cons4, cons5,
+  -- * Argument construction,
+  Argument(..), isoPrim, Testable(..), Depth,
+  ) where
 
 import Control.Applicative
 import Control.DeepSeq
@@ -13,6 +29,7 @@ import Data.Typeable
 import GHC.Generics
 import GHC.Show (appPrec)
 import Text.Show.Functions
+import System.Exit
 import System.IO.Unsafe
 
 -- Figure 2
@@ -222,7 +239,54 @@ data Property = Lift Bool | Not Property
               | And Property Property | Implies Property Property
               | ForAll (Depth -> Depth) (Series Property)
               | Exists (Depth -> Depth) (Series Property)
-                
+
+class PropertyLike a where
+  mkProperty :: a -> Property
+
+instance PropertyLike Bool where mkProperty = Lift
+instance PropertyLike Property where mkProperty = id
+
+-- | 'Property' equivalent to 'True'.
+tt :: Property
+tt = Lift True
+-- | 'Property' equivalent to 'False'.
+ff :: Property
+ff = Lift False
+
+-- | 'Property' equivalent to 'not'.
+inv :: PropertyLike a => a -> Property
+inv = Not . mkProperty
+
+-- | Boolean lazy implication.
+(==>) :: Bool -> Bool -> Bool
+False ==> _ = True
+True  ==> x = x
+
+-- | 'Property' equivalent to '&&'.
+(*&&*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
+xs *&&* ys  = mkProperty xs `And` mkProperty ys
+-- | 'Property' equivalent to implication, '==>'.
+(*==>*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
+xs *==>* ys = mkProperty xs `Implies` mkProperty ys
+
+-- | Universal quantification. Space searched is bounded by the
+-- global depth.
+forAll :: Testable a => a -> Property
+forAll = ForAll id . mkTest . pure
+-- | Existential quantification. Space searched is bounded by the
+-- global depth.
+exists :: Testable a => a -> Property
+exists = Exists succ . mkTest . pure
+
+-- | Universal quantification. Space searched is 
+-- global depth changed by some depth function.
+forAllDeeperBy :: Testable a => (Depth -> Depth) -> a -> Property
+forAllDeeperBy f = ForAll f . mkTest . pure
+-- | Existential quantification. Space searched is 
+-- global depth changed by some depth function.
+existsDeeperBy :: Testable a => (Depth -> Depth) -> a -> Property
+existsDeeperBy f = Exists f . mkTest . pure
+
 -- Figure 9
 counterexample :: Depth -> Series Property -> Maybe TVInfo
 counterexample d xs = either (error "counterexample: Unhandled refinement") id $
@@ -246,10 +310,6 @@ refute n d xs = terms (runSeries xs d)
     prop (ForAll   f xs)  = isNothing  <$> refute (succ n) (f d) xs
     prop (Exists   f xs)  = isJust     <$> refute (succ n) (f d) (fmap0 Not xs)
     
-(==>) :: Bool -> Bool -> Bool
-False  ==> _ = True
-True   ==> x = x
-
 class Testable a where
   mkTest :: Series a -> Series Property
   
@@ -265,7 +325,8 @@ instance (Serial a, Testable b) => Testable (a -> b) where
 depthCheck :: Testable a => Depth -> a -> IO ()
 depthCheck d x = case counterexample d (mkTest $ pure x) of
   Nothing   -> putStrLn $ "Passed!"
-  Just env  -> putStrLn $ "Failed!\n" ++ show env
+  Just env  -> do putStrLn $ "Failed!\n" ++ show env
+                  exitFailure
 
 -- Figure 10
 type (:->:) = Level1
@@ -400,5 +461,37 @@ instance (Argument a, Serial a, Serial b) => Serial (a -> b) where
 instance Argument Bool
 instance Argument a => Argument [a]
 
+cons, cons0 :: o -> Series o
+cons  = pure
+cons0 = pure
+
+cons1 :: Serial a => 
+         (a -> o) -> Series o
+cons1 f = f <$> series
+
+cons2 :: (Serial a, Serial b) => 
+         (a -> b -> o) -> Series o
+cons2 f = f <$> series <*> series
+
+cons3 :: (Serial a, Serial b, Serial c) => 
+         (a -> b -> c -> o) -> Series o
+cons3 f = f <$> series <*> series <*> series
+
+cons4 :: (Serial a, Serial b, Serial c, Serial d) => 
+         (a -> b -> c -> d -> o) -> Series o
+cons4 f = f <$> series <*> series <*> series <*> series
+
+cons5 :: (Serial a, Serial b, Serial c, Serial d, Serial e) => 
+         (a -> b -> c -> d -> e -> o) -> Series o
+cons5 f = f <$> series <*> series <*> series <*> series <*> series
+
+-- | Series union. Synonym for '<|>'.
+(\/) :: Series a -> Series a -> Series a
+(\/) = (<|>)
+
+-- | Series application. Synonym for '<*>'.
+(><) :: Series (a -> b) -> Series a -> Series b
+(><) = (<*>)
+
 prop_ReduceFold :: ([Bool] -> Bool) -> Property
-prop_ReduceFold r = Exists succ $ mkTest $ pure $ \f z -> ForAll id $ mkTest $ pure $ \xs -> r xs == foldr f z xs
+prop_ReduceFold r = exists $ \f z -> forAll $ \xs -> r xs == foldr f z xs
