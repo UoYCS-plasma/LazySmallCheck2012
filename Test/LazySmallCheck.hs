@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric, DeriveDataTypeable, DefaultSignatures, 
              FlexibleContexts, FlexibleInstances, TypeOperators, GADTs, 
-             ExistentialQuantification, Rank2Types, ScopedTypeVariables, 
-             MonadComprehensions, ParallelListComp #-}
+             Rank2Types, MonadComprehensions, ParallelListComp #-}
 module Test.LazySmallCheck where
 
 import Control.Applicative
