@@ -136,7 +136,7 @@ introduced and preserved.
 >
 > mergeTerms :: [Term a] -> Term a
 > mergeTerms []  = error "LSC: Cannot merge empty terms."
-> mergeTerms [x] = x
+> -- mergeTerms [x] = x
 > mergeTerms xs  = PTerm (QC [string "_"] . inject . Expand . second ($ [])) (const xs) (sum $ map tSize xs)
 >
 > instance Alternative Series where
