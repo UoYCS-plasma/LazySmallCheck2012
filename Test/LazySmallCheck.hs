@@ -2,7 +2,7 @@
              FlexibleContexts, FlexibleInstances, TypeOperators, GADTs, 
              ExistentialQuantification, Rank2Types, ScopedTypeVariables, 
              MonadComprehensions, ParallelListComp #-}
-module LazySmallCheck where
+module Test.LazySmallCheck where
 
 import Control.Applicative
 import Control.DeepSeq
