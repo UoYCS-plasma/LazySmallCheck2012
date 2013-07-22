@@ -6,10 +6,10 @@ module Test.LazySmallCheck(
   depthCheck,
   -- ** Property language
   Property(), PropertyLike(..),
-  tt, ff, inv, (*&&*), (*==>*), (==>),
+  tt, ff, inv, (*&&*), (*==>*), (==>), (|&&|),
   forAll, exists, forAllDeeperBy, existsDeeperBy, 
   -- * Serial and Series definition
-  Serial(series), Series(), 
+  Serial(series), Series(), seriesSize,
   -- * Series construction
   module Control.Applicative, (\/), (><), ap0, 
   deeperBy, drawnFrom, 
@@ -97,7 +97,7 @@ instance Applicative Term where
 snoc xs x = xs . (x:)
 
 mergeTerms :: [Term a] -> Term a
-mergeTerms xs = PTerm (TVE [string "_"] . refineAt) (const xs) (toInteger $ length xs)
+mergeTerms xs = PTerm (TVE [string "_"] . refineAt) (const xs) (sum $ map tSize xs)
 
 -- Absent from paper
 type AlignedString = String
@@ -132,8 +132,7 @@ fmap0 f xs = pure f `ap0` xs
 
 ap0 :: Series (a -> b) -> Series a -> Series b
 ap0 (Series fs) (Series xs) = Series $ \d ->
-    [ f <*> mergeTerms x  | d > 0, f <- fs d
-                          , let x = xs d, (not.null) x ]
+    [ f <*> mergeTerms x | f <- fs d, let x = xs d, (not.null) x ]
 deeperBy :: (Depth -> Depth) -> Series a -> Series a
 deeperBy f srs = Series $ runSeries srs . f
 
@@ -151,7 +150,7 @@ class Show a => Serial a where
 
   
   default series :: (Generic a, GSerial (Rep a)) => Series a
-  series = fmap to $ gseries
+  series = fmap0 to $ gseries
   
   default partialShowsPrec :: (Generic a, GSerial (Rep a)) => Int -> Partial a -> ShowS
   partialShowsPrec p = gpartialShowsPrec ' ' p . fmap from
@@ -206,11 +205,26 @@ instance (GSerial f, GSerial g) => GSerial (f :*: g) where
     = gpartialShowsPrec c (succ p) (Partial x) 
     . (c:) . gpartialShowsPrec c p (Partial y)
 
-instance Serial ()
+zeroCost = deeperBy (+1)
+
+instance Serial () where
+  series = cons0 ()
+    
+instance (Serial a, Serial b) => Serial (a, b) where
+  series = zeroCost $ cons2 (,)
+  
+instance (Serial a, Serial b, Serial c) => Serial (a, b, c) where
+  series = zeroCost $ cons3 (,,)
+                
+instance (Serial a, Serial b, Serial c, Serial d) 
+         => Serial (a, b, c, d) where
+  series = zeroCost $ cons4 (,,,)
+  
+instance (Serial a, Serial b, Serial c, Serial d, Serial e)
+         => Serial (a, b, c, d, e) where
+  series = zeroCost $ cons5 (,,,,)
+
 instance Serial Bool
-instance (Serial a, Serial b) => Serial (a, b)
-instance (Serial a, Serial b, Serial c) => Serial (a, b, c)
-instance (Serial a, Serial b, Serial c, Serial d) => Serial (a, b, c, d)
 instance (Serial a) => Serial [a]
 instance (Serial a) => Serial (Maybe a)
 instance (Serial a, Serial b) => Serial (Either a b)
@@ -231,12 +245,13 @@ instance Serial Int where
   partialShowsPrec = primpartialShowsPrec
   
 instance Serial Integer where
-  series = drawnFrom $ \d -> [(-toInteger d)..toInteger d]
+  series = drawnFrom $ \d -> map toInteger [(-d)..d]
   partialShowsPrec = primpartialShowsPrec
   
 -- Figure 8
 data Property = Lift Bool | Not Property 
               | And Property Property | Implies Property Property
+              | PAnd Property Property
               | ForAll (Depth -> Depth) (Series Property)
               | Exists (Depth -> Depth) (Series Property)
 
@@ -265,6 +280,9 @@ True  ==> x = x
 -- | 'Property' equivalent to '&&'.
 (*&&*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
 xs *&&* ys  = mkProperty xs `And` mkProperty ys
+-- | 'Property' equivalent to '&&' but exploiting commutivity.
+(|&&|) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
+xs |&&| ys  = mkProperty xs `PAnd` mkProperty ys
 -- | 'Property' equivalent to implication, '==>'.
 (*==>*) :: (PropertyLike a, PropertyLike b) => a -> b -> Property
 xs *==>* ys = mkProperty xs `Implies` mkProperty ys
@@ -288,28 +306,54 @@ existsDeeperBy :: Testable a => (Depth -> Depth) -> a -> Property
 existsDeeperBy f = Exists f . mkTest . pure
 
 -- Figure 9
-counterexample :: Depth -> Series Property -> Maybe TVInfo
-counterexample d xs = either (error "counterexample: Unhandled refinement") id $
-                      refute 0 d xs
+counterexample :: Depth -> Series Property -> (Integer, Maybe TVInfo)
+counterexample d xs = case refute 0 d xs of
+  CR n (Left _)   -> error "counterexample: Unhandled refinement"
+  CR n (Right x)  -> (n, x)
                       
-refute :: Nesting -> Depth -> Series Property -> Either Refine (Maybe TVInfo)
+
+data CR a = CR { crTests :: !Integer, crValue :: Either Refine a }
+
+instance Functor CR where
+  fmap f (CR n v) = CR n (fmap f v)
+instance Monad CR where
+  return = CR 0 . Right
+  CR n v >>= f = CR (n + n') v'
+    where CR n' v' = either (CR 0 . Left) f v
+instance Applicative CR where
+  pure = return
+  (<*>) = ap
+instance NFData a => NFData (CR a) where
+  rnf (CR c x) = rnf c `seq` rnf x
+
+refute :: Nesting -> Depth -> Series Property -> CR (Maybe TVInfo)
 refute n d xs = terms (runSeries xs d)
   where
-    terms :: [Term Property] -> Either Refine (Maybe TVInfo)
-    terms []      = Right Nothing
-    terms (t:ts)  = case (join . runPartial . fmap prop) <$> tValue t (n, id) of
-      TVE _     (Left (RefineAt (m, ps))) | m == n     -> terms  $ tExpand t (ps []) ++ ts
-                                          | otherwise  -> Left   $ RefineAt (m, ps)
-      TVE info  (Right False)                          -> Right  $ Just info
-      TVE _     (Right True)                           -> terms  $ ts
-    prop :: Property -> Either Refine Bool
+    terms :: [Term Property] -> CR (Maybe TVInfo)
+    terms []      = return Nothing
+    terms (t:ts)  = case (join . CR 1 . runPartial . fmap prop) <$> tValue t (n, id) of
+      TVE _     (CR c (Left (RefineAt (m, ps)))) | m == n     -> add c  $ terms  $ tExpand t (ps []) ++ ts
+                                                 | otherwise  -> CR  c  $ Left   $ RefineAt (m, ps)
+      TVE info  (CR c (Right False))                          -> add c  $ return  $ Just info
+      TVE _     (CR c (Right True))                           -> add c  $ terms  $ ts
+    prop :: Property -> CR Bool
     prop (Lift     v)     = pure       v
     prop (Not      p)     = not        <$> prop p
     prop (And      p q)   = (&&)       <$> prop p <*> prop q
+    prop (PAnd     p q)   = parConj (prop p) (prop q)
     prop (Implies  p q)   = (==>)      <$> prop p <*> prop q
     prop (ForAll   f xs)  = isNothing  <$> refute (succ n) (f d) xs
     prop (Exists   f xs)  = isJust     <$> refute (succ n) (f d) (fmap0 Not xs)
-    
+
+add :: Integer -> CR a -> CR a
+add m (CR n x) = CR (m+n) x
+
+parConj :: CR Bool -> CR Bool -> CR Bool
+parConj (CR m p@(Left _))       (CR n (Left _))  = CR (m+n) p
+parConj (CR m (Left _))         (CR n q)         = CR (m+n) q
+parConj (CR m p@(Right False))  (CR n q)         = CR (m+n) p
+parConj (CR m (Right True))     (CR n q)         = CR (m+n) q
+
 class Testable a where
   mkTest :: Series a -> Series Property
   
@@ -324,9 +368,10 @@ instance (Serial a, Testable b) => Testable (a -> b) where
   
 depthCheck :: Testable a => Depth -> a -> IO ()
 depthCheck d x = case counterexample d (mkTest $ pure x) of
-  Nothing   -> putStrLn $ "Passed!"
-  Just env  -> do putStrLn $ "Failed!\n" ++ show env
-                  exitFailure
+  (n, Nothing)   -> putStrLn $ "Passed after " ++ show n ++ " tests."
+  (n, Just env)  -> do putStrLn $ "Failed after " ++ show n ++ " tests."
+                       print env
+                       exitFailure
 
 -- Figure 10
 type (:->:) = Level1
@@ -495,3 +540,6 @@ cons5 f = f <$> series <*> series <*> series <*> series <*> series
 
 prop_ReduceFold :: ([Bool] -> Bool) -> Property
 prop_ReduceFold r = exists $ \f z -> forAll $ \xs -> r xs == foldr f z xs
+
+seriesSize :: Int -> Series a -> Integer
+seriesSize d xs = sum $ map tSize $ runSeries xs d

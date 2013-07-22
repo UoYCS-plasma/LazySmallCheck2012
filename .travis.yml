@@ -1,0 +1,6 @@
+language: haskell
+
+branches:
+  except:
+    - library
+    - ghcgenerics

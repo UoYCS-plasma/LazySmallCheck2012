@@ -25,7 +25,7 @@ data Test = forall a. (Testable a) =>
 
 suite = [ test1, test2, test3, test4, test5, test6, test7, test8
         , test9, test10, test11a, test11b, test11c
-        , test12a, test12b, test12c, test13, test14a {- test14b -} ]
+        , test12a, test12b, test12c, test13, test14a, test14b ]
 
 ------------------------------------------------------------------------------------
 
@@ -60,7 +60,7 @@ allDiff (x:xs) = x `notElem` xs && allDiff xs
 
 isSet :: Ord a => Bool -> [a] -> Property
 isSet False xs = ordered xs *&&* allDiff xs
--- isSet True  xs = ordered xs |&&| allDiff xs
+isSet True  xs = ordered xs |&&| allDiff xs
 
 setinsert :: Char -> [Char] -> [Char]
 setinsert x []     = [x]
