@@ -3,9 +3,7 @@
 % Jason S. Reich
 % 6th June 2012
 
-> {-# LANGUAGE DefaultSignatures, FlexibleContexts, TypeSynonymInstances,
->              FlexibleInstances, TypeOperators,
->              DeriveFunctor, Rank2Types, ScopedTypeVariables #-}
+> {-# LANGUAGE DeriveFunctor, Rank2Types, ScopedTypeVariables #-}
 
 This module provides an interface for coping with values that you
 know may contain exceptions, perhaps because you put them there (like
@@ -25,8 +23,9 @@ A few neccessary imports and hides.
 > import Control.Applicative
 > import Control.DeepSeq
 > import Control.Exception
+> import Data.Data
 > import Data.List
-> import GHC.Generics
+> import Data.Typeable
 > import GHC.Show (appPrec)
 > import System.IO.Unsafe
 > import Prelude hiding (catch)
@@ -87,89 +86,15 @@ an exception predicate at their head.
 'show' will display '_' for values that are really partial.
 *Requires an AugmentedShow instance*.
 
-> instance (Exception e, AugmentedShow a) => Show (Partial e a) where
->   showsPrec p = ashowsPrec p
->
-> class AugmentedShow a where
->   ashowsPrec :: Exception e => Int -> Partial e a -> ShowS
->
->   default ashowsPrec :: (Exception e, Generic a, GAugmentedShow (Rep a)) => 
->                         Int -> Partial e a -> ShowS
->   ashowsPrec p = gashowsPrec ' ' p . fmap from
->
-> class GAugmentedShow f where
->   gashowsPrec :: Exception e => Char -> Int -> Partial e (f a) -> ShowS
->
-> instance GAugmentedShow f => GAugmentedShow (D1 a f) where
->   gashowsPrec b p = gashowsPrec b p . fmap unM1
->
-> instance (GAugmentedShow f, GAugmentedShow g)  => GAugmentedShow (f :+: g) where
->   gashowsPrec b p x | isException x = ('_':)
->   gashowsPrec b p o@(Partial (L1 x)) = gashowsPrec b p $ mkPartial o x
->   gashowsPrec b p o@(Partial (R1 x)) = gashowsPrec b p $ mkPartial o x
->
-> mkPartial :: Partial e a -> b -> Partial e b
-> mkPartial _ = Partial
->
-> instance GAugmentedShow U1 where
->   gashowsPrec _ _ _ = id
->
-> instance (AugmentedShow b) => GAugmentedShow (K1 a b) where
->   gashowsPrec b p = ashowsPrec p . fmap unK1
->
-> instance (GAugmentedShow f, Constructor c) => GAugmentedShow (C1 c f) where
->   gashowsPrec b p x | isException x = ('_':)
->   gashowsPrec b p o@(Partial t)
->     -- Is a tuple
->     | (isPrefixOf "(," . conName) t
->     = showParen True $ gashowsPrec ',' appPrec $ mkPartial o (unM1 t)
->     -- Is a cons
->     | ((== ":") . conName) t
->     = showParen (p > 5) $ gashowsPrec ':' 5 $ mkPartial o (unM1 t)
->     -- Is to be displayed prefix
->     | otherwise
->     = showParen (p > appPrec) $ showString (conName t) . 
->       gashowsPrec ' ' (appPrec + 1) (mkPartial o (unM1 t))
->
-> instance (GAugmentedShow f, Selector s) => GAugmentedShow (S1 s f) where
->   gashowsPrec b p = gashowsPrec b p . fmap unM1
->
-> instance (GAugmentedShow f, GAugmentedShow g)  => GAugmentedShow (f :*: g) where
->   gashowsPrec b p x | isException x = ('_':)
->   gashowsPrec b p o@(Partial (x :*: y)) 
->     = gashowsPrec b (p+1) (mkPartial o x)
->     . (b:)
->     . gashowsPrec b p (mkPartial o y)
->
-> example :: (AugmentedShow a) => a -> String
-> example = show . mkPartial'
->   where mkPartial' :: a -> Partial SomeException a
->         mkPartial' = Partial
-> 
-> instance AugmentedShow ()
-> instance (AugmentedShow a, AugmentedShow b) => AugmentedShow (a,b)
-> instance (AugmentedShow a) => AugmentedShow [a]
->
-> normal p x | isException x = ('_':)
-> normal p (Partial x) = showsPrec p x
->
-> instance AugmentedShow Char where
->   ashowsPrec = normal
->
-> instance AugmentedShow Int where
->   ashowsPrec = normal
->
-> instance AugmentedShow Float where
->   ashowsPrec = normal
->
-> {-
-> gashowsPrec :: Exception e => Int -> Partial e a -> ShowS
-> gashowsPrec = undefined
->   gAshowsPrec p x | isException x = ('_':)
->   gAshowsPrec p (Partial t)
->     -- Is a tuple
->     | (isPrefixOf "(," . conName . from) t = undefined
->     = showParen True 
+> instance (Exception e, Data a) => Show (Partial e a) where
+>   showsPrec = showsPrecData
+
+> showsPrecData :: forall e a. (Exception e, Data a) => Int -> Partial e a -> ShowS
+> showsPrecData p x | isException x = ('_':)
+> showsPrecData p (Partial t)
+>   -- Is a tuple
+>   | (isPrefixOf "(," . show . toConstr) t 
+>   = showParen True 
 >   $ foldr (.) id . intersperse (showChar ',')
 >   . gmapQ (showsPrecData appPrec . mkPartial) $ t
 >   -- Is a cons
@@ -187,7 +112,10 @@ an exception predicate at their head.
 >                             . mkPartial ) $ t)
 >   where 
 >     mkPartial :: forall a. a -> Partial e a
->     mkPartial = Partial -}
+>     mkPartial = Partial
+
+> constrArity :: Data d => d -> Int
+> constrArity = length . gmapQ (const ())
 
 Explicitly Partial Functors
 =========================
