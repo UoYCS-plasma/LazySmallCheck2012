@@ -62,7 +62,7 @@ isSet :: Ord a => Bool -> [a] -> Property
 isSet False xs = ordered xs *&&* allDiff xs
 isSet True  xs = ordered xs |&&| allDiff xs
 
-setinsert :: Char -> [Char] -> [Char]
+setinsert :: Int -> [Int] -> [Int]
 setinsert x []     = [x]
 setinsert x (y:ys) | x == y    = y : ys
                    | x <= y    = x : y : ys

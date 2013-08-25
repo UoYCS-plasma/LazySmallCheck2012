@@ -23,14 +23,18 @@ import Control.Applicative
 import Control.DeepSeq
 import Control.Exception
 import Control.Monad
+import Control.Monad.ST
 import Data.List
 import Data.Maybe
+import Data.STRef
 import Data.Typeable
 import GHC.Generics
 import GHC.Show (appPrec)
 import Text.Show.Functions
 import System.Exit
 import System.IO.Unsafe
+
+import Debug.Trace
 
 -- Figure 2
 type Location = (Nesting, Path -> Path)
@@ -97,7 +101,9 @@ instance Applicative Term where
 snoc xs x = xs . (x:)
 
 mergeTerms :: [Term a] -> Term a
-mergeTerms xs = PTerm (TVE [string "_"] . refineAt) (const xs) (sum $ map tSize xs)
+mergeTerms []  = error "mergeTerms: Non-empty merge."
+mergeTerms [x] = x
+mergeTerms xs  = PTerm (TVE [string "_"] . refineAt) (const xs) (sum $ map tSize xs)
 
 -- Absent from paper
 type AlignedString = String
@@ -224,7 +230,8 @@ instance (Serial a, Serial b, Serial c, Serial d, Serial e)
          => Serial (a, b, c, d, e) where
   series = zeroCost $ cons5 (,,,,)
 
-instance Serial Bool
+instance Serial Bool {- where
+  series = cons False <|> cons True -}
 instance (Serial a) => Serial [a]
 instance (Serial a) => Serial (Maybe a)
 instance (Serial a, Serial b) => Serial (Either a b)
@@ -311,7 +318,6 @@ counterexample d xs = case refute 0 d xs of
   CR n (Left _)   -> error "counterexample: Unhandled refinement"
   CR n (Right x)  -> (n, x)
                       
-
 data CR a = CR { crTests :: !Integer, crValue :: Either Refine a }
 
 instance Functor CR where
@@ -332,10 +338,10 @@ refute n d xs = terms (runSeries xs d)
     terms :: [Term Property] -> CR (Maybe TVInfo)
     terms []      = return Nothing
     terms (t:ts)  = case (join . CR 1 . runPartial . fmap prop) <$> tValue t (n, id) of
-      TVE _     (CR c (Left (RefineAt (m, ps)))) | m == n     -> add c  $ terms  $ tExpand t (ps []) ++ ts
+      TVE info  (CR c (Left (RefineAt (m, ps)))) | m == n     -> ("x: " ++ show info) `trace` add c  $ terms  $ tExpand t (ps []) ++ ts
                                                  | otherwise  -> CR  c  $ Left   $ RefineAt (m, ps)
       TVE info  (CR c (Right False))                          -> add c  $ return  $ Just info
-      TVE _     (CR c (Right True))                           -> add c  $ terms  $ ts
+      TVE info  (CR c (Right True))                           -> ("t: " ++ show info) `trace` add c  $ terms  $ ts
     prop :: Property -> CR Bool
     prop (Lift     v)     = pure       v
     prop (Not      p)     = not        <$> prop p
@@ -348,11 +354,53 @@ refute n d xs = terms (runSeries xs d)
 add :: Integer -> CR a -> CR a
 add m (CR n x) = CR (m+n) x
 
+
 parConj :: CR Bool -> CR Bool -> CR Bool
-parConj (CR m p@(Left _))       (CR n (Left _))  = CR (m+n) p
-parConj (CR m (Left _))         (CR n q)         = CR (m+n) q
-parConj (CR m p@(Right False))  (CR n q)         = CR (m+n) p
-parConj (CR m (Right True))     (CR n q)         = CR (m+n) q
+parConj (CR m p) (CR n q) = CR (m + n) (aux (join $ runPartial $ Partial p) (join $ runPartial $ Partial q))
+  where aux (Right False) q             = Right False
+        aux (Right True)  q             = q
+        aux (Left _)      (Right False) = Right False
+        aux p             q             = p
+
+fmap2 f x = fmap f <$> x
+ap2 f x = (<*>) <$> f <*> x
+
+counterexample' :: Depth -> Series Property -> (Integer, Maybe TVInfo)
+counterexample' d xs = runST $ do
+  ref <- newSTRef 0
+  result <- refute' ref 0 d xs
+  count <- readSTRef ref
+  return $ either (error . show) ((,) count) result
+
+refute' :: STRef s Integer -> Nesting -> Depth -> Series Property -> ST s (Either Refine (Maybe TVInfo))
+refute' count n d xs = terms (runSeries xs d)
+  where
+    -- terms :: [Term Property] -> ST s (Either Refine (Maybe TVInfo))
+    terms []     = return (Right Nothing)
+    terms (t:ts) = do
+      let TVE info val = tValue t (n, id) :: TVE (Partial Property)
+      modifySTRef' count (+1)
+      result <- prop (unsafePartial val)
+      case result of
+        Left (RefineAt (m, ps)) | m == n    -> terms $ tExpand t (ps []) ++ ts
+                                | otherwise -> return $ Left $ RefineAt (m,ps)
+        Right True                          -> terms ts
+        Right False                         -> return $ Right $ Just info
+    -- prop :: Property -> ST s (Either Refine Bool)
+    prop (Lift     v)    = return $ runPartial $ Partial v
+    prop (Not      p)    = not `fmap2` prop p
+    prop (And      p q)  = (&&) `fmap2` prop p `ap2` prop q
+    prop (PAnd     p q)  = do
+      x <- prop p
+      case x of
+        Right False -> return $ Right False
+        Right True  -> prop q
+        Left _      -> do
+          y <- prop q
+          return $ either (const x) Right y
+    prop (Implies  p q)  = (==>) `fmap2` prop p `ap2` prop q
+    prop (ForAll   f xs) = isNothing `fmap2` refute' count (succ n) (f d) xs
+    prop (Exists   f xs) = isJust `fmap2` refute' count (succ n) (f d) (fmap0 Not xs)
 
 class Testable a where
   mkTest :: Series a -> Series Property
@@ -367,7 +415,7 @@ instance (Serial a, Testable b) => Testable (a -> b) where
   mkTest  srs = mkTest $ srs `ap0` seriesWithEnv
   
 depthCheck :: Testable a => Depth -> a -> IO ()
-depthCheck d x = case counterexample d (mkTest $ pure x) of
+depthCheck d x = case counterexample' d (mkTest $ pure x) of
   (n, Nothing)   -> putStrLn $ "Passed after " ++ show n ++ " tests."
   (n, Just env)  -> do putStrLn $ "Failed after " ++ show n ++ " tests."
                        print env
