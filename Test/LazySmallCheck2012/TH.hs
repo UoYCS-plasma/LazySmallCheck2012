@@ -75,10 +75,12 @@ deriveArgument tname = do
   let unitT = [t| () |]
   let sumT t0 t1 = [t| Either $(t0) $(t1) |]
   let proT t0 t1 = [t| ($(t0), $(t1)) |]
-  let instBase (TySynInstD base _ _) = tySynInstD base [tfullname]
-         (foldr sumT unitT 
-          [ foldr proT unitT [ [t| BaseCast $(return t) |] | t <- ts ]
-          | (c, ts) <- tconstrs' ])
+  let instBase (TySynInstD base (TySynEqn _ _)) =
+        tySynInstD base
+          (tySynEqn [tfullname]
+            (foldr sumT unitT
+             [ foldr proT unitT [ [t| BaseCast $(return t) |] | t <- ts ]
+             | (c, ts) <- tconstrs' ]))
       instBase x = return x
   -- Change instance for toBase
   let proE x y = [| ($x, $y) |]
