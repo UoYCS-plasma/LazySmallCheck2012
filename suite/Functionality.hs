@@ -2,6 +2,7 @@
              DeriveFunctor, TypeFamilies, TemplateHaskell #-}
 {-# OPTIONS_GHC -ignore-dot-ghci #-}
 
+import Control.Applicative
 import Control.Exception
 import Control.Monad
 import Data.Data
@@ -129,7 +130,7 @@ instance Argument Peano where
 
 test8 = Test "foldr1 is the same as foldl1"
         (\f xs -> let typ = f :: Peano -> Peano -> Peano
-                  in (not.null) xs ==> (foldr1 f xs == foldl1 f xs))
+                  in (not.null) (xs :: [Peano]) ==> (foldr1 f xs == foldl1 f xs))
         False 5
         
 ----------------------------------------------------------------------
@@ -190,6 +191,18 @@ p        +++ Stop     = p
 Emit x p +++ q        = Emit x (p +++ q)
 p        +++ Emit x q = Emit x (p +++ q)
 Step p   +++ Step q    = Step (p +++ q)
+
+instance Functor ClockEmit where
+  fmap f Stop        = Stop
+  fmap f (Step x)    = Step (fmap f x)
+  fmap f (Emit x xs) = Emit (f x) (fmap f xs)
+
+instance Applicative ClockEmit where
+  pure x = Emit x Stop
+  Stop        <*> _    = Stop
+  _           <*> Stop = Stop
+  (Step f)    <*> x    = Step (f <*> x)
+  (Emit f fs) <*> x    = (f <$> x) +++ (fs <*> x)
 
 instance Monad ClockEmit where
   return x     = Emit x Stop

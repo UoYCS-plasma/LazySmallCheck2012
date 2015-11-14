@@ -1,6 +1,8 @@
 {-# LANGUAGE TemplateHaskell, TypeFamilies #-}
 module Test.LazySmallCheck2012.TH (deriveSerial, deriveArgument, viewPretty, viewRaw) where
 
+import qualified Debug.Trace
+
 import Control.Applicative
 import Control.Monad
 import Data.Generics.Uniplate.Data
@@ -22,21 +24,25 @@ simpleCon (RecC c vts)     = (c, [ t | (_, s, t) <- vts ])
 simpleCon (InfixC t0 c t1) = (c, map snd [t0, t1])
 simpleCon _ = error "simpleCon: Unsupported datatype"
 
+unwrapTvar (PlainTV  n)   = n
+unwrapTvar (KindedTV n k) = n
+
 -- | Deriving a `Serial` instance
 deriveSerial :: Name -> DecsQ
 deriveSerial tname = do
   TyConI (DataD _ _ tvars tconstrs _) <- reify tname
+  let tvars' = map unwrapTvar tvars
   when (null tconstrs) $ fail "deriveSerial: Empty datatype."
   template <- [d| instance Serial THole where
                     series = thole
               |]
   -- Change instance name
-  let instName (AppT serial _) = appT (return serial) $ 
-         foldl1 appT (conT tname : [ varT tv | PlainTV tv <- tvars ])
+  let instName (AppT serial _) = appT (return serial) $
+         foldl1 appT (conT tname : [ varT tv | tv <- tvars' ])
       instName x = return x
   -- Change instance contexts
   let instCtx (InstanceD _ name@(AppT (ConT serial) _) decls) = instanceD
-         (return [ ClassP serial [VarT tv] | PlainTV tv <- tvars ])
+         (return [ AppT (ConT serial) (VarT tv) | tv <- tvars' ])
          (return name) (map return decls)
       instCtx x = return x
   -- Change instance function body
@@ -55,7 +61,8 @@ deriveSerial tname = do
 deriveArgument :: Name -> DecsQ
 deriveArgument tname = do
   TyConI (DataD _ _ tvars tconstrs _) <- reify tname
-  let tconstrs' = map simpleCon tconstrs
+  let tconstrs' = map simpleCon  tconstrs
+      tvars'    = map unwrapTvar tvars
   when (null tconstrs) $ fail "deriveSerial: Empty datatype."
   template <- [d| instance Argument THole where
                     type Base THole = THole
@@ -63,12 +70,12 @@ deriveArgument tname = do
                     fromBase _ = thole
               |]
   -- Change instance name
-  let tfullname = foldl1 appT (conT tname : [ varT tv | PlainTV tv <- tvars ])
+  let tfullname = foldl1 appT (conT tname : [ varT tv | tv <- tvars' ])
   let instName (AppT argument _) = appT (return argument) tfullname
       instName x = return x
   -- Change instance contexts
   let instCtx (InstanceD _ name@(AppT (ConT argument) _) decls) = instanceD
-         (return [ ClassP argument [VarT tv] | PlainTV tv <- tvars ])
+         (return [ AppT (ConT argument) (VarT tv) | tv <- tvars' ])
          (return name) (map return decls)
       instCtx x = return x
   -- Change instance of Base
