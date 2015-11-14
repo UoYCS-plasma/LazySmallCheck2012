@@ -1,8 +1,6 @@
 {-# LANGUAGE TemplateHaskell, TypeFamilies #-}
 module Test.LazySmallCheck2012.TH (deriveSerial, deriveArgument, viewPretty, viewRaw) where
 
-import qualified Debug.Trace
-
 import Control.Applicative
 import Control.Monad
 import Data.Generics.Uniplate.Data
