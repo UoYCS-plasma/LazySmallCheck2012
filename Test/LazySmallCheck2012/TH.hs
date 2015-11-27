@@ -25,6 +25,9 @@ simpleCon _ = error "simpleCon: Unsupported datatype"
 unwrapTvar (PlainTV  n)   = n
 unwrapTvar (KindedTV n k) = n
 
+applyClass :: Monad m => Name -> [Name] -> m [Type]
+applyClass cls tvars = return [ AppT (ConT cls) (VarT tv) | tv <- tvars ]
+
 -- | Deriving a `Serial` instance
 deriveSerial :: Name -> DecsQ
 deriveSerial tname = do
@@ -40,18 +43,18 @@ deriveSerial tname = do
       instName x = return x
   -- Change instance contexts
   let instCtx (InstanceD _ name@(AppT (ConT serial) _) decls) = instanceD
-         (return [ AppT (ConT serial) (VarT tv) | tv <- tvars' ])
+         (applyClass serial tvars')
          (return name) (map return decls)
       instCtx x = return x
   -- Change instance function body
   let union xs ys = [| $xs \/ $ys |]
-  let body = normalB $ foldr1 union 
+  let body = normalB $ foldr1 union
          [ appE (varE $ mkName $ "cons" ++ show (length ts)) (conE c)
          | (c, ts) <- map simpleCon tconstrs ]
   let instFunc (ValD seriesF _ _) = valD (return seriesF) body []
       instFunc x = return x
   -- Perform transformations
-  transformBiM instName template >>= 
+  transformBiM instName template >>=
     transformBiM instCtx >>=
     transformBiM instFunc
 
@@ -73,7 +76,7 @@ deriveArgument tname = do
       instName x = return x
   -- Change instance contexts
   let instCtx (InstanceD _ name@(AppT (ConT argument) _) decls) = instanceD
-         (return [ AppT (ConT argument) (VarT tv) | tv <- tvars' ])
+         (applyClass argument tvars')
          (return name) (map return decls)
       instCtx x = return x
   -- Change instance of Base
@@ -109,9 +112,9 @@ deriveArgument tname = do
              clause [buildBaseP i vs] (normalB rhs) []
         | (i, (c, ts)) <- zip [0..] tconstrs' ]
       instFrom x = return x
-  transformBiM instName template >>= 
+  transformBiM instName template >>=
     transformBiM instCtx >>=
-    transformBiM instFrom >>= 
+    transformBiM instFrom >>=
     transformBiM instTo >>=
     transformBiM instBase
 
