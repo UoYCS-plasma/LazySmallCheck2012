@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies, CPP #-}
 module Test.LazySmallCheck2012.TH (deriveSerial, deriveArgument, viewPretty, viewRaw) where
 
 import Control.Applicative
@@ -25,8 +25,14 @@ simpleCon _ = error "simpleCon: Unsupported datatype"
 unwrapTvar (PlainTV  n)   = n
 unwrapTvar (KindedTV n k) = n
 
-applyClass :: Monad m => Name -> [Name] -> m [Type]
-applyClass cls tvars = return [ AppT (ConT cls) (VarT tv) | tv <- tvars ]
+-- We use GLASGOW_HASKELL since MIN_VERSION_template-haskell(2,10,0) causes a
+-- CPP error
+applyClass :: Name -> [Name] -> [Type]
+#if __GLASGOW_HASKELL__ >= 710
+applyClass cls tvars = [ AppT (ConT cls) (VarT tv) | tv <- tvars ]
+#else
+applyClass cls tvars = [ ClassP     cls  [VarT tv] | tv <- tvars ]
+#endif
 
 -- | Deriving a `Serial` instance
 deriveSerial :: Name -> DecsQ
@@ -43,7 +49,7 @@ deriveSerial tname = do
       instName x = return x
   -- Change instance contexts
   let instCtx (InstanceD _ name@(AppT (ConT serial) _) decls) = instanceD
-         (applyClass serial tvars')
+         (return (applyClass serial tvars'))
          (return name) (map return decls)
       instCtx x = return x
   -- Change instance function body
@@ -76,7 +82,7 @@ deriveArgument tname = do
       instName x = return x
   -- Change instance contexts
   let instCtx (InstanceD _ name@(AppT (ConT argument) _) decls) = instanceD
-         (applyClass argument tvars')
+         (return (applyClass argument tvars'))
          (return name) (map return decls)
       instCtx x = return x
   -- Change instance of Base
