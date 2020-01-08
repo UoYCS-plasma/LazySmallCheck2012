@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TypeApplications #-}
 module Benchmarks.Catch where
 
 -- A property of Catch by Neil Mitchell
@@ -56,7 +57,7 @@ merge :: [Pattern] -> [Pattern] -> [Pattern]
 merge  ms_1 ms_2 = [Pattern c_1 (zipWith mergeVal vs_1 vs_2) |
        Pattern c_1 vs_1 <- ms_1, Pattern c_2 vs_2 <- ms_2, c_1 == c_2]
 
-validConstraint = all validVal
+validConstraint = all @[] validVal
 validVal Any = True
 validVal (ms1 :* ms2) = validPatterns ms1 && validPatterns ms2
 validPatterns = all validPattern

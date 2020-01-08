@@ -34,8 +34,8 @@ import qualified LSC2012.TestRegExp
 import qualified LSC2012.TestSumPuz
 import qualified LSC2012.TestTurner
 
-ignore :: IO a -> IO ()
-ignore x = (x >> return ()) `catch` (\ e -> print (e :: SomeException))
+ignore :: IO a -> Benchmarkable
+ignore x = whnfIO $ (x >> return ()) `catch` (\ e -> print (e :: SomeException))
 
 lsc2008 = 
   [ bench "TestCatch" $ ignore $ LSC2008.TestCatch.bench "4"
