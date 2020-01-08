@@ -38,7 +38,7 @@ applyClass cls tvars = [ ClassP     cls  [VarT tv] | tv <- tvars ]
 -- | Deriving a `Serial` instance
 deriveSerial :: Name -> DecsQ
 deriveSerial tname = do
-  TyConI (DataD _ _ tvars tconstrs _) <- reify tname
+  TyConI (DataD _ _ tvars _ tconstrs _) <- reify tname
   let tvars' = map unwrapTvar tvars
   when (null tconstrs) $ fail "deriveSerial: Empty datatype."
   template <- [d| instance Serial THole where
@@ -49,7 +49,7 @@ deriveSerial tname = do
          foldl1 appT (conT tname : [ varT tv | tv <- tvars' ])
       instName x = return x
   -- Change instance contexts
-  let instCtx (InstanceD _ name@(AppT (ConT serial) _) decls) = instanceD
+  let instCtx (InstanceD _ _ name@(AppT (ConT serial) _) decls) = instanceD
          (return (applyClass serial tvars'))
          (return name) (map return decls)
       instCtx x = return x
@@ -68,7 +68,7 @@ deriveSerial tname = do
 -- | Deriving a `Argument` instance
 deriveArgument :: Name -> DecsQ
 deriveArgument tname = do
-  TyConI (DataD _ _ tvars tconstrs _) <- reify tname
+  TyConI (DataD _ _ tvars _ tconstrs _) <- reify tname
   let tconstrs' = map simpleCon  tconstrs
       tvars'    = map unwrapTvar tvars
   when (null tconstrs) $ fail "deriveSerial: Empty datatype."
@@ -82,7 +82,7 @@ deriveArgument tname = do
   let instName (AppT argument _) = appT (return argument) tfullname
       instName x = return x
   -- Change instance contexts
-  let instCtx (InstanceD _ name@(AppT (ConT argument) _) decls) = instanceD
+  let instCtx (InstanceD _ _ name@(AppT (ConT argument) _) decls) = instanceD
          (return (applyClass argument tvars'))
          (return name) (map return decls)
       instCtx x = return x

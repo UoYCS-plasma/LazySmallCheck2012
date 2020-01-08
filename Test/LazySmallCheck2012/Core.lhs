@@ -1,3 +1,4 @@
+> {-# LANGUAGE ConstrainedClassMethods #-}
 > {-# LANGUAGE DeriveDataTypeable #-}
 > module Test.LazySmallCheck2012.Core where
 
