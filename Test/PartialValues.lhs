@@ -146,6 +146,13 @@ empty nodes.
 >         aux (Leaf x)     = (Just x :)
 >         aux (Branch l r) = aux l . aux r
 
+> instance Applicative BT where
+>   pure = Leaf
+>   Empty        <*> _        = Empty
+>   _            <*> Empty    = Empty
+>   (Leaf f)     <*> (Leaf x) = Leaf (f x)
+>   (Branch l r) <*> x        = Branch (l <*> x) (r <*> x)
+
 > instance Monad BT where
 >   return = Leaf
 >   Empty      >>= _ = Empty

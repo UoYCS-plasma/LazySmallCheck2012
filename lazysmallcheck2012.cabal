@@ -1,0 +1,108 @@
+Name:                lazysmallcheck2012
+Version:             1.1.1
+Synopsis:            Lazy SmallCheck with functional values and existentials!
+Description:         A property-based testing library enables users to perform
+                     lightweight verification of software. This package presents
+                     improvements to the Lazy SmallCheck property-based testing
+                     library. Users can now test properties that quantify over 
+                     first-order functional values and nest universal and
+                     existential quantifiers in properties. When a property 
+                     fails, Lazy SmallCheck now accurately expresses the 
+                     partiality of the counterexample. The necessary
+                     architectural changes to Lazy SmallCheck result in a
+                     performance speed-up. 
+Homepage:            https://github.com/UoYCS-plasma/LazySmallCheck2012
+License:             BSD3
+License-file:        LICENSE
+Author:              Jason S. Reich
+Maintainer:          jason at cs.york.ac.uk
+Category:            Testing
+Build-type:          Simple
+Extra-source-files:  README.md .ghci suite/performance.sh
+Cabal-version:       >=1.10
+
+Library
+  Default-Language:    Haskell2010
+  Exposed-modules:     Test.LazySmallCheck2012
+                     , Test.LazySmallCheck2012.Core
+                     , Test.LazySmallCheck2012.FunctionalValues
+                     , Test.LazySmallCheck2012.FunctionalValues.Instances
+                     , Test.LazySmallCheck2012.Instances
+                     , Test.LazySmallCheck2012.Stats
+                     , Test.LazySmallCheck2012.TH
+                     , Test.PartialValues
+  Build-depends:       base >= 4 && < 5
+                     , deepseq >= 1.4 && < 1.5
+                     , ghc >= 8 && < 9
+                     , syb >= 0.7 && < 0.8
+                     , template-haskell >= 2.11 && < 2.15
+                     , uniplate >= 1.6 && < 1.7
+
+Test-Suite functionality 
+  Default-Language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  main-is:             suite/Functionality.hs
+  Build-depends:       base >= 4 && < 5
+                     , deepseq >= 1.4 && < 1.5
+                     , ghc >= 8 && < 9
+                     , syb >= 0.7 && < 0.8
+                     , template-haskell >= 2.11 && < 2.15
+                     , uniplate >= 1.6 && < 1.7
+  GHC-Options:         -rtsopts
+
+Benchmark performance
+  Default-Language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  main-is:             suite/Performance.hs
+  hs-source-dirs:      .
+                     , suite/performance
+  Build-depends:       base >=4 && < 5
+                     , criterion >= 1.5 && < 1.6
+                     , deepseq >= 1.4 && < 1.5
+                     , syb >= 0.7 && < 0.8
+  Other-Modules:       LazySmallCheck 
+                     , Benchmarks.Catch
+                     , Benchmarks.Countdown
+                     , Benchmarks.Huffman
+                     , Benchmarks.ListSet
+                     , Benchmarks.Mate
+                     , Benchmarks.Mux
+                     , Benchmarks.RedBlack
+                     , Benchmarks.RegExp
+                     , Benchmarks.Sad
+                     , Benchmarks.SumPuz
+                     , Benchmarks.Turner
+                     , LSC2008.TestCatch
+                     , LSC2008.TestCircuits1
+                     , LSC2008.TestCircuits2
+                     , LSC2008.TestCircuits3
+                     , LSC2008.TestCountdown1
+                     , LSC2008.TestCountdown2
+                     , LSC2008.TestHuffman1
+                     , LSC2008.TestHuffman2
+                     , LSC2008.TestListSet1
+                     , LSC2008.TestMate
+                     , LSC2008.TestMux2
+                     , LSC2008.TestRedBlack
+                     , LSC2008.TestRegExp
+                     , LSC2008.TestSumPuz
+                     , LSC2008.TestTurner
+                     , LSC2012.TestCatch
+                     , LSC2012.TestCircuits1
+                     , LSC2012.TestCircuits2
+                     , LSC2012.TestCircuits3
+                     , LSC2012.TestCountdown1
+                     , LSC2012.TestCountdown2
+                     , LSC2012.TestHuffman1
+                     , LSC2012.TestHuffman2
+                     , LSC2012.TestListSet1
+                     , LSC2012.TestMate
+                     , LSC2012.TestMux2
+                     , LSC2012.TestRedBlack
+                     , LSC2012.TestRegExp
+                     , LSC2012.TestSumPuz
+                     , LSC2012.TestTurner
+
+Source-Repository head
+  type:     git
+  location: https://github.com/UoYCS-plasma/LazySmallCheck2012.git
