@@ -1,5 +1,5 @@
 Name:                lazysmallcheck2012
-Version:             1.1.0
+Version:             1.1.1
 Synopsis:            Lazy SmallCheck with functional values and existentials!
 Description:         A property-based testing library enables users to perform
                      lightweight verification of software. This package presents
