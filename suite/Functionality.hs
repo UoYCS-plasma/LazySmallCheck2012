@@ -14,9 +14,6 @@ import Test.LazySmallCheck2012.Core
 import Test.LazySmallCheck2012.FunctionalValues
 import Test.LazySmallCheck2012.TH
 
-main = do mapM_ runTest suite
-          putStrLn "\nSuite: Test suite complete."
-
 runTest (Test str t v d) = do putStrLn $ "\n## Test '" ++ str ++ "': "
                               expect v $ mapM_ (`depthCheck` t) [0..d]
                               putStrLn $ "## Test response correct."
@@ -27,10 +24,6 @@ expect False = either (\(SomeException _) -> return ()) (const exitFailure) <=< 
 
 data Test = forall a. (Data a, Typeable a, Testable a) => 
             Test String a Bool Depth
-
-suite = [ test1, test2, test3, test4, test5, test6, test7, test8
-        , test9, test10, test11a, test11b, test11c
-        , test12a, test12b, test12c, test13, test14a, test14b ]
 
 ------------------------------------------------------------------------------------
 
@@ -235,6 +228,9 @@ test11c = Test "ClockBind obeys Bind/Bind"
 
 data Foo a = Foo a a a deriving (Show, Data, Typeable, Eq)
 
+deriveSerial   ''Foo
+deriveArgument ''Foo
+
 {-
 Now perfomed using deriveSerial and deriveArgument
 
@@ -266,5 +262,9 @@ test12c = Test "Foo obeys Cobind/Cobind"
                       in (cobind f . cobind g) xs == cobind (f . cobind g) xs)
           False 5
 
-deriveSerial   ''Foo
-deriveArgument ''Foo
+suite = [ test1, test2, test3, test4, test5, test6, test7, test8
+        , test9, test10, test11a, test11b, test11c
+        , test12a, test12b, test12c, test13, test14a, test14b ]
+
+main = do mapM_ runTest suite
+          putStrLn "\nSuite: Test suite complete."
