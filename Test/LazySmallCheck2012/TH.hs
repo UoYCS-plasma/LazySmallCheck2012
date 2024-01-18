@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies, CPP #-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
 module Test.LazySmallCheck2012.TH (deriveSerial, deriveArgument, viewPretty, viewRaw) where
 
 import Control.Applicative
@@ -25,15 +25,8 @@ simpleCon _ = error "simpleCon: Unsupported datatype"
 unwrapTvar (PlainTV  n)   = n
 unwrapTvar (KindedTV n k) = n
 
--- We use GLASGOW_HASKELL since MIN_VERSION_template-haskell(2,10,0) causes a
--- CPP error
-#if __GLASGOW_HASKELL__ >= 710
 applyClass :: Name -> [Name] -> [Type]
 applyClass cls tvars = [ AppT (ConT cls) (VarT tv) | tv <- tvars ]
-#else
-applyClass :: Name -> [Name] -> [Pred]
-applyClass cls tvars = [ ClassP     cls  [VarT tv] | tv <- tvars ]
-#endif
 
 -- | Deriving a `Serial` instance
 deriveSerial :: Name -> DecsQ
