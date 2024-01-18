@@ -22,8 +22,8 @@ simpleCon (RecC c vts)     = (c, [ t | (_, s, t) <- vts ])
 simpleCon (InfixC t0 c t1) = (c, map snd [t0, t1])
 simpleCon _ = error "simpleCon: Unsupported datatype"
 
-unwrapTvar (PlainTV  n)   = n
-unwrapTvar (KindedTV n k) = n
+unwrapTvar (PlainTV  n _)   = n
+unwrapTvar (KindedTV n k _) = n
 
 applyClass :: Name -> [Name] -> [Type]
 applyClass cls tvars = [ AppT (ConT cls) (VarT tv) | tv <- tvars ]
@@ -80,12 +80,16 @@ deriveArgument tname = do
          (return name) (map return decls)
       instCtx x = return x
   -- Change instance of Base
-  let unitT = [t| () |]
+  let unitT = [t| () |] :: Q Type
   let sumT t0 t1 = [t| Either $(t0) $(t1) |]
   let proT t0 t1 = [t| ($(t0), $(t1)) |]
-  let instBase (TySynInstD base (TySynEqn _ _)) =
-        tySynInstD base
-          (tySynEqn [tfullname]
+  let instBase (TySynInstD (TySynEqn _ (AppT base _) _)) =
+        tySynInstD
+          (tySynEqn
+            (if null tvars'
+                then Nothing
+                else Just (map (flip PlainTV ()) tvars'))
+            (appT (pure base) tfullname)
             (foldr sumT unitT
              [ foldr proT unitT [ [t| BaseCast $(return t) |] | t <- ts ]
              | (c, ts) <- tconstrs' ]))
@@ -97,7 +101,7 @@ deriveArgument tname = do
       buildBaseE n vs = [| Right $(buildBaseE (n - 1) vs) |]
   let instTo (FunD to _) | "toBase" `isSuffixOf` show to = funD to
         [ do vs <- mapM (const $ newName "x") ts
-             let lhs = ConP c $ map VarP vs
+             let lhs = ConP c [] $ map VarP vs
              clause [return lhs] (normalB (buildBaseE i vs)) []
         | (i, (c, ts)) <- zip [0..] tconstrs' ]
       instTo x = return x
