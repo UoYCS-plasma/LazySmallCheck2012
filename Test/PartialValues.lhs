@@ -46,11 +46,10 @@ Name a mathematical abstraction, it probably holds over the 'Partial'
 functor.
 
 > instance Monad (Partial e) where
->   return = Partial
 >   Partial x >>= f = f x
 >
 > instance Applicative (Partial e) where
->   pure = return
+>   pure = Partial
 >   f <*> x = unwrapMonad $ WrapMonad f <*> WrapMonad x
 
 inject creates partial values.
@@ -154,7 +153,6 @@ empty nodes.
 >   (Branch l r) <*> x        = Branch (l <*> x) (r <*> x)
 
 > instance Monad BT where
->   return = Leaf
 >   Empty      >>= _ = Empty
 >   Leaf x     >>= f = f x
 >   Branch l r >>= f = Branch (l >>= f) (r >>= f)

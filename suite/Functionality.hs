@@ -198,7 +198,6 @@ instance Applicative ClockEmit where
   (Emit f fs) <*> x    = (f <$> x) +++ (fs <*> x)
 
 instance Monad ClockEmit where
-  return x     = Emit x Stop
   Stop     >>= k = Stop
   Step m   >>= k = Step (m >>= k)
   Emit x m >>= k = k x +++ (m >>= k)
