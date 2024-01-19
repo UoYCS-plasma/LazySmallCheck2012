@@ -15,7 +15,7 @@ Homepage:            https://github.com/UoYCS-plasma/LazySmallCheck2012
 License:             BSD3
 License-file:        LICENSE
 Author:              Jason S. Reich
-Maintainer:          jason at cs.york.ac.uk
+Maintainer:          chriswarbo@gmail.com
 Category:            Testing
 Build-type:          Simple
 Extra-source-files:  README.md .ghci suite/performance.sh
@@ -113,4 +113,4 @@ Benchmark performance
 
 Source-Repository head
   type:     git
-  location: https://github.com/UoYCS-plasma/LazySmallCheck2012.git
+  location: https://github.com/Warbo/LazySmallCheck2012.git
